@@ -56,3 +56,17 @@ test("campos demais no multipart devolvem 400 genérico, não o aviso de foto gr
   assert.equal(res.statusCode, 400);
   assert.deepEqual(res.json(), { error: "Dados do pedido inválidos." });
 });
+
+test("a resposta 429 expõe Retry-After ao navegador via CORS", async () => {
+  await t.close();
+  t = await createTestApp({ orderReadsPerMinute: 1 });
+  const url = "/orders/6b1f9a52-5a43-4d52-8d52-0a8f2f0a0000";
+  const headers = { origin: "http://localhost:6610" };
+
+  await t.app.inject({ method: "GET", url, headers });
+  const blocked = await t.app.inject({ method: "GET", url, headers });
+
+  assert.equal(blocked.statusCode, 429);
+  assert.match(String(blocked.headers["access-control-expose-headers"]), /Retry-After/i);
+  assert.ok(blocked.headers["retry-after"]);
+});

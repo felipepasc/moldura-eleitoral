@@ -1,7 +1,7 @@
 {
   "name": "moldura-eleitoral",
   "private": true,
-  "engines": { "node": ">=22" },
+  "engines": { "node": ">=22.9" },
   "scripts": {
     "dev:api": "pnpm --filter @moldura/api dev",
     "dev:web": "pnpm --filter @moldura/web dev",

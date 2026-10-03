@@ -30,7 +30,7 @@ export async function buildApp(deps: AppDeps) {
     bodyLimit: PHOTO_MAX_BYTES + 1024 * 1024,
   });
 
-  await app.register(cors, { origin: deps.webOrigin });
+  await app.register(cors, { origin: deps.webOrigin, exposedHeaders: ["Retry-After"] });
   await app.register(rateLimit, { global: false });
   await app.register(multipart, { limits: { files: 1, fields: 5, fileSize: PHOTO_MAX_BYTES } });
 

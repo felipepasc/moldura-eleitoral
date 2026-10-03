@@ -39,7 +39,7 @@ Os arquivos públicos `/frames/<id>.png` (servidos pelo web) são as molduras **
 - Exemplos com abas Presidente | Governador; em Governador há o seletor de estado (27 UFs) e "Governadores: em breve" até existirem candidatos (o filtro já usa `candidatesBy`). Em `/criar` o seletor de moldura agrupa por cargo (`<optgroup>`) e o de estado fica desabilitado.
 - Faixa de partidos: sigla, número e cor (sem logotipos); quando a cor do partido não dá contraste AA com o texto, ela é escurecida só o necessário (`swatch` em `web/src/lib/art.ts`).
 - `web/scripts/sync-frames.mjs` (predev/prebuild) copia os PNG de 1080 px e gera `public/frames/<id>.webp` de 480 px com `sharp` (devDependency do web); a home usa o WebP e o `/criar` continua com o PNG, que o canvas da prévia precisa.
-- Teste dos helpers: de dentro de `web/`, `../api/node_modules/.bin/tsx --test src/lib/*.check.ts`.
+- Teste dos helpers: `pnpm test` (roda também os `web/src/lib/*.check.ts`).
 
 ## Proteção da prévia
 
@@ -93,15 +93,17 @@ A limpeza roda uma vez na subida da api e depois a cada hora (`cleanupOrders`, s
 
 - Pedidos `pending`/`expired`: após 24 h da criação. Antes de apagar, a limpeza reconsulta o Pix na AbacatePay (se pagou, o pedido segue as regras de pago; se a consulta falhar, o pedido é pulado e tentado na hora seguinte). A linha é apagada com condição de status (nunca apaga um pedido que acabou de pagar) e a foto depois; se a foto não puder ser removida, sai um aviso de foto órfã e a regra do MinIO (4 dias) é a rede de segurança.
 - Teto independente da AbacatePay: pedido `pending`/`expired` com mais de 3 dias é apagado mesmo que a consulta continue falhando (chave trocada, URL errada, 401/403/404).
+- Se esse apagamento por teto acontecer com a consulta falhando, o log traz o aviso "Pedido não pago apagado pelo teto sem confirmação" com `pixId` e `orderRef`: o cliente pode ter pago sem a api saber.
 - Pedidos `paid`: após 7 dias do pagamento (ou da criação, se não houver data de pagamento). Imagem final e foto que tenha sobrado são removidas primeiro; a linha inteira (Pix, enquadramento) só é apagada se todas as remoções deram certo, senão tenta de novo na hora seguinte. Qualquer `photoKey` que sobrou de uma remoção que falhou é apagada na hora.
 - Pedidos `paid_failed` (cliente pagou e não recebeu a imagem): após 3 dias da criação (com a AbacatePay respondendo); teto de 5 dias mesmo com a AbacatePay fora do ar. O apagamento registra o aviso "Pedido pago sem imagem apagado" com o `pixId` (ver o roteiro abaixo).
 - `webhook_events`: após 30 dias.
 
-A regra de ciclo de vida do MinIO (`photos/` 4 dias, `results/` 8 dias) é só uma rede de segurança (a limpeza normalmente apaga a foto em 24 h ou no pagamento). Se ela não puder ser aplicada, a api apenas registra o aviso "Não consegui configurar a expiração automática do bucket" na subida: em produção, o operador precisa vigiar esse aviso. Como a foto some do MinIO em 4 dias, um `paid_failed` não pode mais ser remontado depois disso: aja antes.
+A regra de ciclo de vida do MinIO (`photos/` 4 dias, `results/` 8 dias) é só uma rede de segurança; a expiração é avaliada por dia (arredondada para a meia-noite UTC e aplicada por um varredor em segundo plano), então 4 e 8 dias são limites superiores com até ~1 dia de folga (a limpeza normalmente apaga a foto em 24 h ou no pagamento). Se ela não puder ser aplicada, a api apenas registra o aviso "Não consegui configurar a expiração automática do bucket" na subida: em produção, o operador precisa vigiar esse aviso. Como a foto some do MinIO em 4 dias, um `paid_failed` não pode mais ser remontado depois disso: aja antes.
 
 ### Roteiro do operador: pedido pago sem imagem
 
-1. Procure no log da api a mensagem "Pedido pago sem imagem" (quando a montagem falha) ou "Pedido pago sem imagem apagado" (quando a limpeza remove o pedido). Os dois eventos trazem `orderRef` (hash curto, serve só para achar o pedido nos logs) e `pixId` (o id da cobrança). São os únicos logs que contêm o `pixId`.
+0. Mesmo roteiro para "Pedido não pago apagado pelo teto sem confirmação": confira o `pixId` no painel da AbacatePay; se estiver pago, reembolse.
+1. Procure no log da api a mensagem "Pedido pago sem imagem" (quando a montagem falha) ou "Pedido pago sem imagem apagado" (quando a limpeza remove o pedido). Os dois eventos trazem `orderRef` (hash curto, serve só para achar o pedido nos logs) e `pixId` (o id da cobrança). São (com o aviso de teto sem confirmação) os únicos logs que contêm o `pixId`.
 2. No painel da AbacatePay, localize a cobrança por esse `pixId` e faça o reembolso.
 3. O pedido não precisa de mais nada: a limpeza apaga a linha sozinha (3 a 5 dias).
 
@@ -129,8 +131,9 @@ Depois do pagamento, o navegador guarda em `localStorage` (chave `moldura:orders
 - Logs do proxy/CDN/MinIO: descarte as query strings (o segredo do webhook viaja em `?webhookSecret=`) e mascare segmentos UUID no caminho (`GET /orders/<uuid>` na api, `/pedido/<uuid>` no web, `results/<uuid>.png` no MinIO); mantenha o log de auditoria/acesso do MinIO desligado.
 - `TRUST_PROXY` com o número real de proxies, verificado atrás do proxy de verdade (confira que o IP usado no limite de requisições é o do cliente, não o do proxy), e a api alcançável só pelo proxy.
 - Rotação do segredo do webhook: atualize `ABACATEPAY_WEBHOOK_SECRET` na api e a URL do webhook no painel da AbacatePay juntos; entre um passo e outro haverá respostas 401 (a AbacatePay reenvia).
+- Logs de acesso do proxy/CDN/host normalmente registram o IP do cliente: desligue-os ou guarde por um período curto e definido (sugestão: até 7 dias). Defina também a retenção dos logs da aplicação (têm `orderRef`, e `pixId` só nos eventos de pago sem imagem e de teto sem confirmação): sugestão de até 30 dias.
 - Mantenha o `api/.env` fora de pastas sincronizadas (OneDrive etc.) em produção.
-- Vigiar o aviso da regra de ciclo de vida do MinIO e a mensagem "Pedido pago sem imagem" (roteiro acima).
+- Vigiar o aviso da regra de ciclo de vida do MinIO e as mensagens "Pedido pago sem imagem" e "Pedido não pago apagado pelo teto sem confirmação" (roteiro acima).
 - O web já envia `Referrer-Policy` e `Content-Security-Policy`; defina `NEXT_PUBLIC_IMAGES_ORIGIN` igual à origem dos links assinados do MinIO antes do build.
 
 ## Verificação ponta a ponta (sem a AbacatePay real)

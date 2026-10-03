@@ -316,12 +316,42 @@ test("pedido pago sem imagem: criação do paid_failed e apagamento logam pixId 
   assert.ok(!logs.includes(row.id));
 });
 
-test("pixId não aparece em nenhum outro log da limpeza", async () => {
+test("pixId não aparece em logs da limpeza fora dos eventos de pago sem imagem e de teto sem confirmação", async () => {
   await insertOrder({ pixId: "pix_quiet_9", createdAt: new Date(clock - 4 * DAY) });
+  await insertOrder({ pixId: "pix_quiet_10", createdAt: new Date(clock - 30 * HOUR) });
   t.gateway.failCheck = true;
+  await t.storage.put("photos/q.jpg", Buffer.from("x"), "image/jpeg");
+  await insertOrder({ pixId: "pix_quiet_11", status: "paid", paidAt: new Date(clock - 8 * DAY), resultKey: "photos/q.jpg" });
+  t.storage.remove = async () => {
+    throw new Error("fora do ar");
+  };
 
   await cleanupOrders(t.ctx);
 
-  assert.ok(logs.length > 0);
-  assert.ok(!logs.includes("pix_quiet_9"));
+  const withPixId = logs.split(LINE_BREAK).filter((line) => line.includes("pix_quiet"));
+  assert.equal(withPixId.length, 1);
+  assert.ok(withPixId[0].includes("pix_quiet_9"));
+  assert.ok(withPixId[0].includes("Pedido não pago apagado pelo teto sem confirmação"));
+});
+
+test("teto de retenção de pedido não pago loga pixId e orderRef (pode ter pago sem ninguém saber)", async () => {
+  t.gateway.failCheck = true;
+  const old = await insertOrder({ pixId: "pix_cap_1", createdAt: new Date(clock - 4 * DAY) });
+
+  const result = await cleanupOrders(t.ctx);
+
+  const line = logs.split(LINE_BREAK).find((entry) => entry.includes("Pedido não pago apagado pelo teto sem confirmação"));
+  assert.equal(result.removed, 1);
+  assert.ok(line);
+  assert.ok(line.includes("pix_cap_1"));
+  assert.ok(line.includes(orderRef(old.id)));
+  assert.ok(!logs.includes(old.id));
+});
+
+test("apagamento de pedido não pago com a AbacatePay respondendo não loga pixId", async () => {
+  await insertOrder({ pixId: "pix_ok_1", createdAt: new Date(clock - 4 * DAY) });
+
+  await cleanupOrders(t.ctx);
+
+  assert.ok(!logs.includes("pix_ok_1"));
 });

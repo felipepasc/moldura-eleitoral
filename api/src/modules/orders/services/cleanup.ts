@@ -53,6 +53,7 @@ type DeletePolicy = {
 // Confirma na AbacatePay antes de apagar; se a consulta falhar, só o teto máximo de retenção apaga mesmo assim.
 async function deleteUnconfirmed(ctx: OrderContext, row: OrderRow, policy: DeletePolicy): Promise<boolean> {
   const beyondHardCap = row.createdAt < policy.hardBefore;
+  let unconfirmed = false;
 
   try {
     const current = await syncOrder(ctx, row.id, { force: true });
@@ -70,6 +71,8 @@ async function deleteUnconfirmed(ctx: OrderContext, row: OrderRow, policy: Delet
     if (!beyondHardCap) {
       return false;
     }
+
+    unconfirmed = true;
   }
 
   const deleted = await deleteGuarded(ctx, row.id, policy.statuses, policy.softBefore);
@@ -79,6 +82,11 @@ async function deleteUnconfirmed(ctx: OrderContext, row: OrderRow, policy: Delet
   }
 
   forgetOrder(ctx, row.id);
+
+  if (unconfirmed && !policy.deletedMessage) {
+    // Pode ter pago sem a api saber: o pixId deixa o operador conferir no painel da AbacatePay (evento com pixId, junto com os de pago sem imagem).
+    ctx.logger.warn({ orderRef: orderRef(row.id), pixId: row.pixId }, "Pedido não pago apagado pelo teto sem confirmação");
+  }
 
   if (policy.deletedMessage) {
     // Segundo e último log com pixId: o operador precisa dele para reembolsar na AbacatePay.
