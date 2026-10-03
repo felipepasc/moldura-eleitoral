@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, test } from "node:test";
+import { Writable } from "node:stream";
 import assert from "node:assert/strict";
 import { eq } from "drizzle-orm";
 import sharp from "sharp";
@@ -87,6 +88,7 @@ test("POST /orders rejeita tipo de arquivo que não é imagem permitida", async 
   const res = await postOrder({ candidateId: "lula", framing: FRAMING }, { data: await photo(), type: "application/pdf" });
 
   assert.equal(res.statusCode, 400);
+  assert.equal(t.storage.files.size, 0);
 });
 
 test("POST /orders com foto acima de 8 MB devolve 413 e não grava nada", async () => {
@@ -201,7 +203,10 @@ test("POST /orders respeita o limite por IP", async () => {
 
     assert.equal((await send()).statusCode, 201);
     assert.equal((await send()).statusCode, 201);
-    assert.equal((await send()).statusCode, 429);
+    const blocked = await send();
+
+    assert.equal(blocked.statusCode, 429);
+    assert.deepEqual(blocked.json(), { error: "Muitas tentativas. Aguarde um instante e tente de novo." });
   } finally {
     await limited.close();
   }
@@ -229,4 +234,107 @@ test("respostas JSON não expõem campos internos em nenhum estado", async () =>
 
     assert.deepEqual(Object.keys(JSON.parse(body)).sort(), ["candidateId", "downloadUrl", "id", "pix", "status"]);
   }
+});
+
+test("falha ao gravar o pedido depois do Pix não deixa foto órfã e não vaza dados no log", async () => {
+  const lines: string[] = [];
+  const stream = new Writable({
+    write(chunk, _encoding, callback) {
+      lines.push(String(chunk));
+      callback();
+    },
+  });
+  const logged = await createTestApp({ logStream: stream });
+
+  try {
+    logged.gateway.nextId = "pix_fixo";
+    const file = { data: await photo(), type: "image/jpeg" };
+    const send = async () => logged.app.inject({ method: "POST", url: "/orders", remoteAddress: "203.0.113.9", ...(await multipart({ candidateId: "lula", framing: FRAMING }, file)) });
+
+    assert.equal((await send()).statusCode, 201);
+    const second = await send();
+
+    assert.equal(second.statusCode, 500);
+    assert.equal(logged.storage.files.size, 1, "só a foto do primeiro pedido pode ficar");
+
+    const text = lines.join("");
+    assert.ok(text.includes("Erro não tratado"), "o erro deve ter sido logado");
+
+    for (const secret of ["203.0.113.9", "000201-", "QUJD", "photos/", "pix_fixo", "Failed query"]) {
+      assert.equal(text.includes(secret), false, `log não deve conter ${secret}`);
+    }
+  } finally {
+    await logged.close();
+  }
+});
+
+test("POST /orders com falha da AbacatePay e do storage.remove ainda devolve 502", async () => {
+  t.gateway.failCreate = true;
+  t.storage.remove = async () => {
+    throw new Error("storage fora do ar");
+  };
+
+  const res = await postOrder({ candidateId: "lula", framing: FRAMING }, { data: await photo(), type: "image/jpeg" });
+
+  assert.equal(res.statusCode, 502);
+});
+
+test("pago na AbacatePay vence a expiração local", async () => {
+  const later = await createTestApp({ now: () => new Date(Date.now() + 3600_000) });
+
+  try {
+    const created = (await later.app.inject({ method: "POST", url: "/orders", ...(await multipart({ candidateId: "lula", framing: FRAMING }, { data: await photo(), type: "image/jpeg" })) })).json();
+    later.gateway.statuses.set(later.gateway.created[0], "PAID");
+
+    assert.equal((await later.app.inject({ method: "GET", url: `/orders/${created.id}` })).json().status, "paid");
+  } finally {
+    await later.close();
+  }
+});
+
+test("pedido já expirado que depois aparece como PAID vira paid", async () => {
+  const created = (await postOrder({ candidateId: "lula", framing: FRAMING }, { data: await photo(), type: "image/jpeg" })).json();
+  t.gateway.statuses.set(t.gateway.created[0], "EXPIRED");
+  assert.equal((await t.app.inject({ method: "GET", url: `/orders/${created.id}` })).json().status, "expired");
+
+  t.gateway.statuses.set(t.gateway.created[0], "PAID");
+  const paid = (await t.app.inject({ method: "GET", url: `/orders/${created.id}` })).json();
+
+  assert.equal(paid.status, "paid");
+  assert.ok(paid.downloadUrl);
+});
+
+test("paid_failed não é rebaixado para expired por consulta que não vê PAID", async () => {
+  const later = await createTestApp({ now: () => new Date(Date.now() + 3600_000), framesDir: "C:/pasta/que/nao/existe" });
+
+  try {
+    const created = (await later.app.inject({ method: "POST", url: "/orders", ...(await multipart({ candidateId: "lula", framing: FRAMING }, { data: await photo(), type: "image/jpeg" })) })).json();
+    later.gateway.statuses.set(later.gateway.created[0], "PAID");
+    assert.equal((await later.app.inject({ method: "GET", url: `/orders/${created.id}` })).json().status, "paid_failed");
+
+    later.gateway.statuses.set(later.gateway.created[0], "EXPIRED");
+
+    assert.equal((await later.app.inject({ method: "GET", url: `/orders/${created.id}` })).json().status, "paid_failed");
+  } finally {
+    await later.close();
+  }
+});
+
+test("paid_failed é remontado mesmo com a AbacatePay fora do ar", async () => {
+  t.ctx.framesDir = "C:/pasta/que/nao/existe";
+  const created = (await postOrder({ candidateId: "lula", framing: FRAMING }, { data: await photo(), type: "image/jpeg" })).json();
+  t.gateway.statuses.set(t.gateway.created[0], "PAID");
+  assert.equal((await t.app.inject({ method: "GET", url: `/orders/${created.id}` })).json().status, "paid_failed");
+
+  t.gateway.failCheck = true;
+  t.ctx.framesDir = (await import("node:path")).resolve("assets/frames");
+
+  assert.equal((await t.app.inject({ method: "GET", url: `/orders/${created.id}` })).json().status, "paid");
+});
+
+test("rota inexistente devolve 404 genérico sem eco da URL", async () => {
+  const res = await t.app.inject({ method: "GET", url: "/nao-existe?segredo=abc" });
+
+  assert.equal(res.statusCode, 404);
+  assert.deepEqual(res.json(), { error: "Não encontrado." });
 });

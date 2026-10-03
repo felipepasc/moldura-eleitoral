@@ -9,6 +9,14 @@ import type { CreatedPix } from "@/modules/payments/gateway";
 
 export class GatewayError extends Error {}
 
+async function removePhotoQuietly(ctx: OrderContext, orderId: string, key: string): Promise<void> {
+  try {
+    await ctx.storage.remove(key);
+  } catch (error) {
+    ctx.logger.warn({ err: error, orderId }, "Não consegui apagar a foto original");
+  }
+}
+
 export type CreateOrderInput = {
   candidateId: string;
   framing: Framing;
@@ -33,28 +41,33 @@ export async function createOrder(ctx: OrderContext, input: CreateOrderInput): P
     });
   } catch (error) {
     ctx.logger.error({ err: error }, "Falha ao criar o Pix");
-    await ctx.storage.remove(photoKey);
+    await removePhotoQuietly(ctx, id, photoKey);
     throw new GatewayError("Não foi possível gerar o Pix agora. Tente de novo em instantes.");
   }
 
-  const [row] = await ctx.db
-    .insert(orders)
-    .values({
-      id,
-      candidateId: input.candidateId,
-      photoKey,
-      framing: input.framing,
-      pixId: pix.id,
-      pixBrCode: pix.brCode,
-      pixBrCodeBase64: pix.brCodeBase64,
-      ipAddress: input.ipAddress,
-      expiresAt: pix.expiresAt,
-    })
-    .returning();
+  try {
+    const [row] = await ctx.db
+      .insert(orders)
+      .values({
+        id,
+        candidateId: input.candidateId,
+        photoKey,
+        framing: input.framing,
+        pixId: pix.id,
+        pixBrCode: pix.brCode,
+        pixBrCodeBase64: pix.brCodeBase64,
+        ipAddress: input.ipAddress,
+        expiresAt: pix.expiresAt,
+      })
+      .returning();
 
-  if (!row) {
-    throw new Error("Falha ao gravar o pedido.");
+    if (!row) {
+      throw new Error("Falha ao gravar o pedido.");
+    }
+
+    return row;
+  } catch (error) {
+    await removePhotoQuietly(ctx, id, photoKey);
+    throw error;
   }
-
-  return row;
 }

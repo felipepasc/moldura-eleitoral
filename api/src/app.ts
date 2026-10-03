@@ -4,7 +4,7 @@ import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import rateLimit from "@fastify/rate-limit";
 import { PHOTO_MAX_BYTES } from "@moldura/common";
-import { serverErr, tooLarge } from "@/core/http-fastify";
+import { notFound, serverErr, tooLarge } from "@/core/http-fastify";
 import type { OrderContext } from "@/modules/orders/context";
 import { ordersRouter } from "@/modules/orders/routes/orders.router";
 import { webhookRouter } from "@/modules/payments/webhook.router";
@@ -45,6 +45,8 @@ export async function buildApp(deps: AppDeps) {
 
     return serverErr(reply);
   });
+
+  app.setNotFoundHandler((_req, reply) => notFound(reply, "Não encontrado."));
 
   app.get("/healthz", async () => ({ ok: true }));
 

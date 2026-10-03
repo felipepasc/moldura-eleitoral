@@ -1,5 +1,6 @@
 import path from "node:path";
 import { and, eq, ne } from "drizzle-orm";
+import type { SQL } from "drizzle-orm";
 import type { OrderContext } from "@/modules/orders/context";
 import { orders } from "@/modules/orders/schema";
 import type { OrderRow } from "@/modules/orders/schema";
@@ -15,11 +16,11 @@ export async function findOrder(ctx: OrderContext, id: string): Promise<OrderRow
   return row ?? null;
 }
 
-async function updateOrder(ctx: OrderContext, id: string, values: Partial<typeof orders.$inferInsert>): Promise<OrderRow | null> {
+async function updateOrder(ctx: OrderContext, id: string, values: Partial<typeof orders.$inferInsert>, guard: SQL | undefined): Promise<OrderRow | null> {
   const [row] = await ctx.db
     .update(orders)
     .set(values)
-    .where(and(eq(orders.id, id), ne(orders.status, "paid")))
+    .where(and(eq(orders.id, id), guard))
     .returning();
 
   if (row) {
@@ -54,14 +55,14 @@ export async function confirmOrder(ctx: OrderContext, row: OrderRow): Promise<Or
 
     await ctx.storage.put(resultKey, image, "image/png");
 
-    const paid = await updateOrder(ctx, row.id, { status: "paid", resultKey, photoKey: null, paidAt: ctx.now() });
+    const paid = await updateOrder(ctx, row.id, { status: "paid", resultKey, photoKey: null, paidAt: ctx.now() }, ne(orders.status, "paid"));
     await removeQuietly(ctx, row.id, row.photoKey);
 
     return paid ?? row;
   } catch (error) {
     ctx.logger.error({ err: error, orderId: row.id }, "Falha ao montar a imagem do pedido");
 
-    const failed = await updateOrder(ctx, row.id, { status: "paid_failed" });
+    const failed = await updateOrder(ctx, row.id, { status: "paid_failed" }, ne(orders.status, "paid"));
 
     return failed ?? row;
   }
@@ -74,8 +75,12 @@ export async function syncOrder(ctx: OrderContext, id: string): Promise<OrderRow
     return null;
   }
 
-  if (row.status === "paid" || row.status === "expired") {
+  if (row.status === "paid") {
     return row;
+  }
+
+  if (row.status === "paid_failed") {
+    return confirmOrder(ctx, row);
   }
 
   const pixStatus = await ctx.gateway.checkPix(row.pixId);
@@ -84,12 +89,12 @@ export async function syncOrder(ctx: OrderContext, id: string): Promise<OrderRow
     return confirmOrder(ctx, row);
   }
 
-  if (row.status === "paid_failed") {
+  if (row.status === "expired") {
     return row;
   }
 
   if (pixStatus === "EXPIRED" || pixStatus === "CANCELLED" || ctx.now() > row.expiresAt) {
-    return updateOrder(ctx, row.id, { status: "expired" });
+    return updateOrder(ctx, row.id, { status: "expired" }, eq(orders.status, "pending"));
   }
 
   return row;

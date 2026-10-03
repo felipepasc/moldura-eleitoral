@@ -7,6 +7,7 @@ export type FakeGateway = PixGateway & {
   created: string[];
   failCreate: boolean;
   failCheck: boolean;
+  nextId: string | null;
 };
 
 export function createFakeGateway(): FakeGateway {
@@ -16,13 +17,14 @@ export function createFakeGateway(): FakeGateway {
     created: [],
     failCreate: false,
     failCheck: false,
+    nextId: null,
 
     async createPix(input) {
       if (gateway.failCreate) {
         throw new Error("gateway fora do ar");
       }
 
-      const id = `pix_${randomUUID().slice(0, 8)}`;
+      const id = gateway.nextId ?? `pix_${randomUUID().slice(0, 8)}`;
       gateway.statuses.set(id, "PENDING");
       gateway.inputs.push(input);
       gateway.created.push(id);

@@ -13,3 +13,9 @@ Conferido em docs.abacatepay.com (API v2, `https://api.abacatepay.com/v2`):
 - O webhook traz o header `X-Webhook-Signature` (HMAC-SHA256 do corpo bruto com a chave pública da AbacatePay). Não dependemos dele: confiamos no segredo na query (`?webhookSecret=`) e sempre reconsultamos o status do Pix na API antes de marcar como pago.
 - `brCodeBase64` pode vir com o prefixo `data:image/png;base64,`.
 - Os campos dentro de `data` do webhook `transparent.completed` não foram confirmados.
+
+## API
+
+- Multipart de `POST /orders`: os campos `candidateId` e `framing` precisam vir ANTES do arquivo `photo`.
+- O id do pedido é a credencial do download: quem tem o id consegue ver o status e baixar a imagem paga.
+- Atrás de proxy, configure `TRUST_PROXY=true` para o rate limit e o IP gravado usarem o cliente real.
