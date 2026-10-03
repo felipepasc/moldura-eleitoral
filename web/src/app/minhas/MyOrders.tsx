@@ -1,22 +1,31 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { findCandidate } from "@moldura/common";
 import { getOrder, statusOf } from "@/lib/api";
-import { browserStorage, clearSavedOrders, loadSavedOrders, removeSavedOrder } from "@/lib/my-orders";
+import { SHARED_DEVICE_WARNING, browserStorage, clearSavedOrders, loadSavedOrders, removeSavedOrder } from "@/lib/my-orders";
+import { safeDownloadUrl } from "@/lib/download-url";
 import type { SavedOrder } from "@/lib/my-orders";
 
 type Item = { saved: SavedOrder; downloadUrl: string | null; failed: boolean };
 
-const NOTICE = "Esta lista fica só neste aparelho por 7 dias. Em computador compartilhado, apague ao terminar.";
+const NOTICE = `Esta lista fica só neste aparelho por 7 dias. Em computador compartilhado, apague ao terminar. ${SHARED_DEVICE_WARNING}`;
+const EXPIRY_HINT = "Os links de download valem por poucos minutos; recarregue esta página para gerar outros.";
+const RATE_LIMIT_MESSAGE = "Muitas consultas seguidas. Aguarde um minuto e recarregue a página.";
+const LOAD_FAILED_MESSAGE = "Não foi possível carregar algumas molduras agora. Tente de novo mais tarde.";
+const IMAGES_ORIGIN = process.env.NEXT_PUBLIC_IMAGES_ORIGIN || "http://localhost:9300";
 
 export function MyOrders() {
   const [items, setItems] = useState<Item[] | null>(null);
   const [confirmAll, setConfirmAll] = useState(false);
+  const [rateLimited, setRateLimited] = useState(false);
+  const stopped = useRef(false);
 
   useEffect(() => {
     let active = true;
+
+    stopped.current = false;
 
     async function run() {
       const storage = browserStorage();
@@ -26,19 +35,20 @@ export function MyOrders() {
 
       // Um pedido por vez: a api limita as leituras por minuto.
       for (const entry of saved) {
-        if (!active) {
+        if (!active || stopped.current) {
           return;
         }
 
         try {
           const order = await getOrder(entry.id);
 
-          if (!active) {
+          if (!active || stopped.current) {
             return;
           }
 
-          if (order.status === "paid" && order.downloadUrl) {
-            const downloadUrl = order.downloadUrl;
+          const downloadUrl = order.status === "paid" && order.downloadUrl ? safeDownloadUrl(order.downloadUrl, IMAGES_ORIGIN) : null;
+
+          if (downloadUrl) {
 
             setItems((current) => current?.map((item) => (item.saved.id === entry.id ? { ...item, downloadUrl } : item)) ?? current);
           } else {
@@ -46,7 +56,13 @@ export function MyOrders() {
             setItems((current) => current?.filter((item) => item.saved.id !== entry.id) ?? current);
           }
         } catch (caught) {
-          if (!active) {
+          if (!active || stopped.current) {
+            return;
+          }
+
+          if (statusOf(caught) === 429) {
+            setRateLimited(true);
+
             return;
           }
 
@@ -73,6 +89,7 @@ export function MyOrders() {
   }
 
   function removeAll() {
+    stopped.current = true;
     clearSavedOrders(browserStorage());
     setItems([]);
     setConfirmAll(false);
@@ -82,9 +99,13 @@ export function MyOrders() {
     return <p aria-live="polite">Carregando...</p>;
   }
 
+  const someFailed = items.some((item) => item.failed);
+
   return (
     <div aria-live="polite">
       <p className="hint">{NOTICE}</p>
+      {items.length > 0 ? <p className="hint">{EXPIRY_HINT}</p> : null}
+      {rateLimited || someFailed ? <p className="error" role="alert">{rateLimited ? RATE_LIMIT_MESSAGE : LOAD_FAILED_MESSAGE}</p> : null}
       {items.length === 0 ? (
         <section className="panel" style={{ gridTemplateColumns: "1fr" }}>
           <b>Você ainda não tem molduras guardadas neste aparelho.</b>
@@ -126,7 +147,7 @@ function MyOrderCard({ item, onRemove }: { item: Item; onRemove: (id: string) =>
       ) : null}
       <b>{name}</b>
       <small>Salva em {date}</small>
-      {item.failed ? <p className="error" role="alert">Não foi possível carregar agora. Tente de novo mais tarde.</p> : null}
+      {item.failed ? <p className="hint">Não foi possível carregar.</p> : null}
       {!item.downloadUrl && !item.failed ? <p className="hint">Carregando...</p> : null}
       <div className="row" style={{ justifyContent: "center", marginTop: 8 }}>
         {item.downloadUrl ? <a className="btn" href={item.downloadUrl} rel="noreferrer noopener">Baixar</a> : null}

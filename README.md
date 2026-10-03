@@ -56,9 +56,9 @@ A regra de ciclo de vida do MinIO (`photos/` 2 dias, `results/` 8 dias) é só u
 
 Depois do pagamento, o navegador guarda em `localStorage` (chave `moldura:orders:v1`) só o id do pedido, o candidato e a data, por 7 dias (máximo 20). Nunca a foto, o Pix ou o link de download. A página `/minhas` busca de novo cada imagem na api, que gera um link assinado novo a cada abertura. Há botões para apagar um item ou tudo.
 
-- Risco: o id do pedido funciona como credencial do download. Quem tiver acesso ao navegador vê as molduras; em computador compartilhado, apague ao terminar. Entradas inválidas, expiradas ou de pedidos que a api não conhece mais são removidas sozinhas.
+- Risco: o id do pedido funciona como credencial do download. Quem tiver acesso ao navegador vê as molduras; em computador compartilhado, apague ao terminar. Apagar a lista não basta: o histórico do navegador guarda o endereço `/pedido/<id>`, e quem abrir esse endereço vê a imagem por 7 dias (e a página guarda o pedido de novo). Por isso, em computador compartilhado, apague também o histórico do navegador ou use uma aba anônima; na tela do pedido há o botão "Não guardar neste aparelho". Entradas inválidas, expiradas ou de pedidos que a api não conhece mais são removidas sozinhas.
 - O site envia `Content-Security-Policy` (ver `web/next.config.ts`): scripts e estilos só do próprio site (`'unsafe-inline'` é exigido pelo Next sem nonces), imagens do próprio site e da origem do MinIO, conexões só para a api.
-- Em produção defina `NEXT_PUBLIC_IMAGES_ORIGIN` (origem pública do MinIO, ex.: `https://files.exemplo.com.br`) e `NEXT_PUBLIC_API_URL` **antes do build**: os dois entram no CSP e no código do navegador.
+- Em produção defina `NEXT_PUBLIC_IMAGES_ORIGIN` (origem pública do MinIO, ex.: `https://files.exemplo.com.br`) e `NEXT_PUBLIC_API_URL` **antes do build**: os dois entram no CSP e no código do navegador. `NEXT_PUBLIC_IMAGES_ORIGIN` precisa ser igual, caractere por caractere, à origem dos links assinados (`localhost` é diferente de `127.0.0.1`); se for diferente, o CSP bloqueia a imagem e a página `/minhas` descarta o link. O valor é fixado no build, e o build avisa se ele estiver vazio ou inválido.
 
 ## Checklist de produção
 
@@ -68,7 +68,7 @@ Depois do pagamento, o navegador guarda em `localStorage` (chave `moldura:orders
 - O proxy não pode registrar query strings nos logs: o segredo do webhook viaja em `?webhookSecret=`.
 - Configurar `TRUST_PROXY` com o número real de proxies e manter a api atrás deles.
 - Vigiar o aviso da regra de ciclo de vida do MinIO.
-- O web já envia `Referrer-Policy`.
+- O web já envia `Referrer-Policy` e `Content-Security-Policy`; defina `NEXT_PUBLIC_IMAGES_ORIGIN` igual à origem dos links assinados do MinIO antes do build.
 
 ## Verificação ponta a ponta (sem a AbacatePay real)
 

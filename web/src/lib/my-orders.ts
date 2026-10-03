@@ -7,6 +7,9 @@ export const MY_ORDERS_KEY = "moldura:orders:v1";
 export const MY_ORDERS_TTL_MS = 7 * 24 * 3600 * 1000;
 export const MY_ORDERS_MAX = 20;
 
+export const SHARED_DEVICE_WARNING =
+  "Em computador compartilhado, apague também o histórico do navegador ou use uma aba anônima, porque o endereço desta página dá acesso à imagem por 7 dias.";
+
 const CLOCK_SKEW_MS = 60 * 1000;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -37,7 +40,7 @@ function toSavedOrder(value: unknown, now: number): SavedOrder | null {
     return null;
   }
 
-  return { id, candidateId, savedAt };
+  return { id: id.toLowerCase(), candidateId, savedAt };
 }
 
 function write(storage: KeyValueStorage, orders: SavedOrder[]): void {
@@ -89,19 +92,29 @@ export function loadSavedOrders(storage: KeyValueStorage | null, now: number): S
     return [];
   }
 
-  const seen = new Set<string>();
-  const valid: SavedOrder[] = [];
+  const sorted: SavedOrder[] = [];
 
   for (const item of parsed) {
     const order = toSavedOrder(item, now);
 
-    if (order && !seen.has(order.id)) {
-      seen.add(order.id);
-      valid.push(order);
+    if (order) {
+      sorted.push(order);
     }
   }
 
-  valid.sort((a, b) => b.savedAt - a.savedAt);
+  // Ordena do mais novo para o mais antigo; na duplicata (mesmo id) vale o savedAt mais novo.
+  sorted.sort((a, b) => b.savedAt - a.savedAt);
+
+  const seen = new Set<string>();
+  const valid = sorted.filter((order) => {
+    if (seen.has(order.id)) {
+      return false;
+    }
+
+    seen.add(order.id);
+
+    return true;
+  });
 
   const kept = valid.slice(0, MY_ORDERS_MAX);
   const original = JSON.stringify(parsed);
@@ -140,7 +153,7 @@ export function removeSavedOrder(storage: KeyValueStorage | null, id: string, no
 
   const current = loadSavedOrders(storage, now);
 
-  write(storage, current.filter((entry) => entry.id !== id));
+  write(storage, current.filter((entry) => entry.id !== id.toLowerCase()));
 }
 
 export function clearSavedOrders(storage: KeyValueStorage | null): void {

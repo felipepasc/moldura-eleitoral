@@ -13,6 +13,10 @@ function originOf(value: string): string {
 const apiOrigin = originOf(process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:6600");
 const imagesOrigin = originOf(process.env.NEXT_PUBLIC_IMAGES_ORIGIN ?? "http://localhost:9300");
 
+if (!imagesOrigin.startsWith("http://") && !imagesOrigin.startsWith("https://")) {
+  console.warn("Aviso: NEXT_PUBLIC_IMAGES_ORIGIN ausente ou inválida; imagens do MinIO ficarão bloqueadas pelo CSP.");
+}
+
 const contentSecurityPolicy = [
   "default-src 'self'",
   "base-uri 'self'",

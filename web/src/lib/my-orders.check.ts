@@ -211,3 +211,51 @@ test("clearSavedOrders apaga a chave", () => {
 
   assert.equal(storage.data.has(MY_ORDERS_KEY), false);
 });
+
+test("ids em maiúsculas e minúsculas são o mesmo pedido (fica o de savedAt mais novo, em minúsculas)", () => {
+  const storage = fakeStorage(
+    JSON.stringify([
+      { id: ID_A.toUpperCase(), candidateId: "lula", savedAt: NOW - 5000 },
+      { id: ID_A, candidateId: "lula", savedAt: NOW - 1000 },
+    ]),
+  );
+
+  assert.deepEqual(loadSavedOrders(storage, NOW), [{ id: ID_A, candidateId: "lula", savedAt: NOW - 1000 }]);
+});
+
+test("na duplicata, o savedAt mais novo vence mesmo vindo depois na lista", () => {
+  const storage = fakeStorage(
+    JSON.stringify([
+      { id: ID_A, candidateId: "lula", savedAt: NOW - 9000 },
+      { id: ID_A, candidateId: "lula", savedAt: NOW - 2000 },
+    ]),
+  );
+
+  assert.deepEqual(loadSavedOrders(storage, NOW), [{ id: ID_A, candidateId: "lula", savedAt: NOW - 2000 }]);
+});
+
+test("savedAt: now+60000 é aceito e now+60001 é rejeitado", () => {
+  const storage = fakeStorage(
+    JSON.stringify([
+      { id: ID_A, candidateId: "lula", savedAt: NOW + 60_000 },
+      { id: ID_B, candidateId: "lula", savedAt: NOW + 60_001 },
+    ]),
+  );
+
+  assert.deepEqual(loadSavedOrders(storage, NOW).map((order) => order.id), [ID_A]);
+});
+
+test("entrada com __proto__ é ignorada", () => {
+  const storage = fakeStorage(`[{"__proto__":{"id":"${ID_B}","candidateId":"lula","savedAt":${NOW}}},{"id":"${ID_A}","candidateId":"lula","savedAt":${NOW}}]`);
+
+  assert.deepEqual(loadSavedOrders(storage, NOW).map((order) => order.id), [ID_A]);
+});
+
+test("removeSavedOrder ignora diferença de maiúsculas", () => {
+  const storage = fakeStorage();
+
+  saveOrder(storage, { id: ID_A, candidateId: "lula" }, NOW);
+  removeSavedOrder(storage, ID_A.toUpperCase(), NOW);
+
+  assert.deepEqual(loadSavedOrders(storage, NOW), []);
+});

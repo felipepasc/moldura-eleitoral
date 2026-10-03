@@ -5,13 +5,14 @@ import Link from "next/link";
 import type { Order } from "@moldura/common";
 import { getOrder, messageOf, statusOf } from "@/lib/api";
 import { POLL_BASE_MS, nextDelay, qrSource } from "@/lib/polling";
-import { browserStorage, saveOrder } from "@/lib/my-orders";
+import { SHARED_DEVICE_WARNING, browserStorage, removeSavedOrder, saveOrder } from "@/lib/my-orders";
 
 export function OrderStatus({ id }: { id: string }) {
   const [order, setOrder] = useState<Order | null>(null);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const [notFound, setNotFound] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
 
   const status = order?.status;
   const candidateId = order?.candidateId;
@@ -91,10 +92,15 @@ export function OrderStatus({ id }: { id: string }) {
   }, [id, stopped]);
 
   useEffect(() => {
-    if (savable && candidateId) {
+    if (savable && candidateId && !dismissed) {
       saveOrder(browserStorage(), { id, candidateId }, Date.now());
     }
-  }, [savable, id, candidateId]);
+  }, [savable, id, candidateId, dismissed]);
+
+  function dismiss() {
+    removeSavedOrder(browserStorage(), id, Date.now());
+    setDismissed(true);
+  }
 
   async function copyCode(code: string) {
     try {
@@ -107,14 +113,14 @@ export function OrderStatus({ id }: { id: string }) {
 
   return (
     <div aria-live="polite">
-      <OrderView order={order} error={error} notFound={notFound} copied={copied} onCopy={copyCode} />
+      <OrderView order={order} error={error} notFound={notFound} copied={copied} dismissed={dismissed} onCopy={copyCode} onDismiss={dismiss} />
     </div>
   );
 }
 
-type ViewProps = { order: Order | null; error: string; notFound: boolean; copied: boolean; onCopy: (code: string) => void };
+type ViewProps = { order: Order | null; error: string; notFound: boolean; copied: boolean; dismissed: boolean; onCopy: (code: string) => void; onDismiss: () => void };
 
-function OrderView({ order, error, notFound, copied, onCopy }: ViewProps) {
+function OrderView({ order, error, notFound, copied, dismissed, onCopy, onDismiss }: ViewProps) {
   if (notFound) {
     return <p className="error" role="alert">Pedido não encontrado.</p>;
   }
@@ -136,7 +142,15 @@ function OrderView({ order, error, notFound, copied, onCopy }: ViewProps) {
           <Link className="btn alt" href="/criar">Criar outra</Link>
         </div>
         <p className="hint">O link vale por poucos minutos; recarregue esta página para gerar outro. A imagem fica disponível por 7 dias.</p>
-        <p className="hint">Guardamos este pedido neste aparelho por 7 dias. Veja em <Link href="/minhas">Minhas molduras</Link>.</p>
+        {dismissed ? (
+          <p className="hint">Este pedido não está guardado neste aparelho.</p>
+        ) : (
+          <>
+            <p className="hint">Guardamos este pedido neste aparelho por 7 dias. Veja em <Link href="/minhas">Minhas molduras</Link>.</p>
+            <div className="row"><button className="btn alt" onClick={onDismiss}>Não guardar neste aparelho</button></div>
+          </>
+        )}
+        <p className="hint">{SHARED_DEVICE_WARNING}</p>
       </section>
     );
   }
