@@ -19,8 +19,8 @@ const QuerySchema = z.object({
 });
 
 const BodySchema = z.object({
-  event: z.string(),
-  id: z.string().optional(),
+  event: z.string().max(200),
+  id: z.string().max(200).optional(),
   data: z.unknown().optional(),
 });
 
@@ -130,9 +130,13 @@ export function webhookRouter(ctx: OrderContext, secret: string, perMinute: numb
       } catch (error) {
         ctx.logger.error({ err: error, event: body.data.event, orderRefs: matched.map((order) => orderRef(order.id)) }, "Falha ao sincronizar o pedido pelo webhook");
 
-        await ctx.db
-          .delete(webhookEvents)
-          .where(eq(webhookEvents.eventId, eventId));
+        try {
+          await ctx.db
+            .delete(webhookEvents)
+            .where(eq(webhookEvents.eventId, eventId));
+        } catch (deleteError) {
+          ctx.logger.error({ err: deleteError }, "Não consegui liberar o evento do webhook");
+        }
 
         return reply.code(503).send({ error: "Tente novamente." });
       }

@@ -16,16 +16,25 @@ export type AppDeps = {
   ctx: OrderContext;
   webhookSecret: string;
   webOrigin: string;
-  trustProxy: boolean;
+  trustProxy: number;
   ordersPerMinute: number;
   orderReadsPerMinute?: number;
   webhookPerMinute?: number;
 };
 
+// Fastify 5 trata trustProxy numérico como "não confiar em ninguém"; por isso contamos os saltos aqui.
+function trustHops(hops: number): boolean | ((address: string, index: number) => boolean) {
+  if (hops <= 0) {
+    return false;
+  }
+
+  return (_address, index) => index < hops;
+}
+
 export async function buildApp(deps: AppDeps) {
   const app = Fastify({
     loggerInstance: deps.ctx.logger,
-    trustProxy: deps.trustProxy,
+    trustProxy: trustHops(deps.trustProxy),
     bodyLimit: PHOTO_MAX_BYTES + 1024 * 1024,
   });
 

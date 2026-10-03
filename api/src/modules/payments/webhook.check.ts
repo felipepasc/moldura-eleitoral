@@ -254,3 +254,33 @@ test("o segredo não aparece nos logs nem nas respostas quando a reconsulta falh
   assert.equal(logs.includes("webhookSecret"), false);
   assert.equal(logs.includes("errado"), false);
 });
+
+test("event ou id gigantes devolvem 400 genérico e não gravam nada", async () => {
+  const huge = "a".repeat(201);
+
+  const bigEvent = await webhook({ event: huge });
+  const bigId = await webhook({ event: "billing.paid", id: huge });
+
+  assert.equal(bigEvent.statusCode, 400);
+  assert.equal(bigId.statusCode, 400);
+  assert.deepEqual(bigEvent.json(), { error: "Evento inválido." });
+  assert.equal((await t.db.select().from(webhookEvents)).length, 0);
+});
+
+test("falha ao liberar o evento no 503 ainda devolve 503 e loga só o erro", async () => {
+  const { pixId } = await createPendingOrder();
+  t.gateway.statuses.set(pixId, "PAID");
+  t.gateway.failCheck = true;
+  const database = t.ctx.db as unknown as { delete: unknown };
+  const originalDelete = database.delete;
+  database.delete = () => {
+    throw new Error("falha ao apagar photos/segredo.jpg");
+  };
+
+  const res = await webhook({ event: "billing.paid", data: { id: pixId } });
+  database.delete = originalDelete;
+
+  assert.equal(res.statusCode, 503);
+  assert.deepEqual(res.json(), { error: "Tente novamente." });
+  assert.ok(!logs.includes("segredo.jpg"));
+});

@@ -395,3 +395,28 @@ test("logs de um fluxo completo não contêm o uuid do pedido nem chaves do stor
     await logged.close();
   }
 });
+
+async function postOrderWithForwardedFor(forwardedFor: string) {
+  const body = await multipart({ candidateId: "lula", framing: FRAMING }, { data: await photo(), type: "image/jpeg" });
+
+  return t.app.inject({ method: "POST", url: "/orders", ...body, headers: { ...body.headers, "x-forwarded-for": forwardedFor } });
+}
+
+test("com trustProxy 0 o X-Forwarded-For forjado não muda o IP gravado", async () => {
+  const res = await postOrderWithForwardedFor("6.6.6.6");
+  const [row] = await t.db.select().from(orders).where(eq(orders.id, res.json().id));
+
+  assert.equal(res.statusCode, 201);
+  assert.notEqual(row.ipAddress, "6.6.6.6");
+  assert.equal(row.ipAddress, "127.0.0.1");
+});
+
+test("com trustProxy 1 vale só o último salto do X-Forwarded-For", async () => {
+  await t.close();
+  t = await createTestApp({ trustProxy: 1 });
+
+  const res = await postOrderWithForwardedFor("6.6.6.6, 9.9.9.9");
+  const [row] = await t.db.select().from(orders).where(eq(orders.id, res.json().id));
+
+  assert.equal(row.ipAddress, "9.9.9.9");
+});
