@@ -1,14 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { PointerEvent } from "react";
+import type { KeyboardEvent, PointerEvent } from "react";
 import { useRouter } from "next/navigation";
-import { CANDIDATES, FRAME_SIZE, MAX_ZOOM, PHOTO_MAX_BYTES, PRICE_CENTS } from "@moldura/common";
+import { CANDIDATES, FRAME_SIZE, MAX_ZOOM, PHOTO_MAX_BYTES, PHOTO_MIME_TYPES, PRICE_CENTS } from "@moldura/common";
 import type { Framing } from "@moldura/common";
 import { createOrder, messageOf } from "@/lib/api";
 import { drawPreview } from "@/lib/preview";
 
+const KEY_STEP = 0.02;
+const FRAME_ERROR = "Não foi possível carregar a moldura.";
+const clamp = (value: number) => Math.min(1, Math.max(-1, value));
 const price = (PRICE_CENTS / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+type LoadedFrame = { id: string; image: HTMLImageElement };
 
 type Drag = { x: number; y: number; offsetX: number; offsetY: number };
 
@@ -16,20 +21,37 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
   const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const dragRef = useRef<Drag | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const [candidateId, setCandidateId] = useState(initialCandidateId);
   const [file, setFile] = useState<File | null>(null);
   const [image, setImage] = useState<HTMLImageElement | null>(null);
-  const [frame, setFrame] = useState<HTMLImageElement | null>(null);
+  const [frame, setFrame] = useState<LoadedFrame | null>(null);
   const [framing, setFraming] = useState<Framing>({ zoom: 1, offsetX: 0, offsetY: 0 });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
+    let active = true;
     const element = new Image();
 
-    element.onload = () => setFrame(element);
+    element.onload = () => {
+      if (active) {
+        setFrame({ id: candidateId, image: element });
+        setError((current) => (current === FRAME_ERROR ? "" : current));
+      }
+    };
+    element.onerror = () => {
+      if (active) {
+        setFrame(null);
+        setError(FRAME_ERROR);
+      }
+    };
     element.src = `/frames/${candidateId}.png`;
+
+    return () => {
+      active = false;
+    };
   }, [candidateId]);
 
   useEffect(() => {
@@ -39,36 +61,88 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
       return;
     }
 
+    let active = true;
     const url = URL.createObjectURL(file);
     const element = new Image();
 
-    element.onload = () => setImage(element);
+    element.onload = () => {
+      if (active) {
+        setImage(element);
+      }
+    };
     element.onerror = () => {
-      setImage(null);
-      setError("Não foi possível abrir essa foto. Escolha outra.");
+      if (active) {
+        setImage(null);
+        setFile(null);
+        setError("Não foi possível abrir essa foto. Escolha outra.");
+
+        if (inputRef.current) {
+          inputRef.current.value = "";
+        }
+      }
     };
     element.src = url;
 
-    return () => URL.revokeObjectURL(url);
+    return () => {
+      active = false;
+      URL.revokeObjectURL(url);
+    };
   }, [file]);
 
   useEffect(() => {
     if (canvasRef.current) {
-      drawPreview(canvasRef.current, image, frame, framing);
+      drawPreview(canvasRef.current, image, frame && frame.id === candidateId ? frame.image : null, framing);
     }
-  }, [image, frame, framing]);
+  }, [image, frame, framing, candidateId]);
+
+  function rejectFile(message: string) {
+    setFile(null);
+    setImage(null);
+    setError(message);
+
+    if (inputRef.current) {
+      inputRef.current.value = "";
+    }
+  }
 
   function pickFile(selected: File | null) {
     setError("");
 
+    if (selected && !PHOTO_MIME_TYPES.includes(selected.type)) {
+      rejectFile("Use uma foto JPEG, PNG ou WebP.");
+
+      return;
+    }
+
     if (selected && selected.size > PHOTO_MAX_BYTES) {
-      setError("A foto passa de 8 MB. Escolha outra.");
+      rejectFile("A foto passa de 8 MB. Escolha outra.");
 
       return;
     }
 
     setFile(selected);
     setFraming({ zoom: 1, offsetX: 0, offsetY: 0 });
+  }
+
+  function endDrag() {
+    dragRef.current = null;
+  }
+
+  function moveByKey(event: KeyboardEvent<HTMLCanvasElement>) {
+    const steps: Record<string, [number, number]> = {
+      ArrowLeft: [-KEY_STEP, 0],
+      ArrowRight: [KEY_STEP, 0],
+      ArrowUp: [0, -KEY_STEP],
+      ArrowDown: [0, KEY_STEP],
+    };
+    const step = steps[event.key];
+
+    if (!step) {
+      return;
+    }
+
+    event.preventDefault();
+    setFraming((current) => ({ ...current, offsetX: clamp(current.offsetX + step[0]), offsetY: clamp(current.offsetY + step[1]) }));
   }
 
   function startDrag(event: PointerEvent<HTMLCanvasElement>) {
@@ -84,7 +158,6 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
     }
 
     const width = event.currentTarget.getBoundingClientRect().width;
-    const clamp = (value: number) => Math.min(1, Math.max(-1, value));
 
     setFraming((current) => ({
       ...current,
@@ -93,8 +166,11 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
     }));
   }
 
+  const frameReady = frame !== null && frame.id === candidateId;
+  const candidateName = CANDIDATES.find((candidate) => candidate.id === candidateId)?.name ?? "";
+
   async function submit() {
-    if (!file) {
+    if (!file || !frameReady) {
       return;
     }
 
@@ -120,14 +196,18 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
         height={FRAME_SIZE}
         onPointerDown={startDrag}
         onPointerMove={moveDrag}
-        onPointerUp={() => {
-          dragRef.current = null;
-        }}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        onLostPointerCapture={endDrag}
+        onKeyDown={moveByKey}
+        role="img"
+        tabIndex={0}
+        aria-label={`Prévia da sua foto com a moldura de ${candidateName}`}
       />
 
       <div>
         <label htmlFor="photo">1. Sua foto</label>
-        <input id="photo" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => pickFile(event.target.files?.[0] ?? null)} />
+        <input ref={inputRef} id="photo" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => pickFile(event.target.files?.[0] ?? null)} />
 
         <label htmlFor="candidate">2. Moldura</label>
         <select id="candidate" value={candidateId} onChange={(event) => setCandidateId(event.target.value)}>
@@ -150,12 +230,12 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
         />
 
         <div className="row" style={{ marginTop: 20 }}>
-          <button className="btn" disabled={!file || busy} onClick={submit}>
+          <button className="btn" disabled={!file || !image || !frameReady || busy} onClick={submit}>
             {busy ? "Gerando Pix..." : `Baixar foto pronta • ${price}`}
           </button>
         </div>
 
-        {error ? <p className="error">{error}</p> : null}
+        {error ? <p className="error" role="alert">{error}</p> : null}
         <p className="hint">A prévia tem marca d&apos;água. Depois do pagamento do Pix, você baixa a foto sem ela.</p>
       </div>
     </section>

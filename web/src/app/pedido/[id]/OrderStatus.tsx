@@ -3,56 +3,89 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { Order } from "@moldura/common";
-import { getOrder, messageOf } from "@/lib/api";
-
-const POLL_MS = 3000;
-
-function qrSource(brCodeBase64: string): string {
-  return brCodeBase64.startsWith("data:") ? brCodeBase64 : `data:image/png;base64,${brCodeBase64}`;
-}
+import { getOrder, messageOf, statusOf } from "@/lib/api";
+import { POLL_BASE_MS, nextDelay, qrSource } from "@/lib/polling";
 
 export function OrderStatus({ id }: { id: string }) {
   const [order, setOrder] = useState<Order | null>(null);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [notFound, setNotFound] = useState(false);
 
   const status = order?.status;
+  const stopped = notFound || status === "paid" || status === "expired";
 
   useEffect(() => {
+    if (stopped) {
+      return;
+    }
+
     let active = true;
+    let inflight = false;
+    let delay = POLL_BASE_MS;
+    let timer: ReturnType<typeof setTimeout> | undefined;
 
-    async function load() {
-      try {
-        const next = await getOrder(id);
-
-        if (active) {
-          setOrder(next);
-          setError("");
-        }
-      } catch (caught) {
-        if (active) {
-          setError(messageOf(caught));
-        }
+    function schedule() {
+      if (active && !document.hidden) {
+        timer = setTimeout(() => {
+          void tick();
+        }, delay);
       }
     }
 
-    void load();
+    async function tick() {
+      timer = undefined;
+      inflight = true;
 
-    if (status === "paid" || status === "expired") {
-      return () => {
-        active = false;
-      };
+      try {
+        const next = await getOrder(id);
+
+        if (!active) {
+          return;
+        }
+
+        setOrder(next);
+        setError("");
+        delay = nextDelay(delay, true);
+      } catch (caught) {
+        if (!active) {
+          return;
+        }
+
+        if (statusOf(caught) === 404) {
+          setNotFound(true);
+
+          return;
+        }
+
+        setError(messageOf(caught));
+        delay = nextDelay(delay, false);
+      } finally {
+        inflight = false;
+      }
+
+      schedule();
     }
 
-    const timer = setInterval(() => {
-      void load();
-    }, POLL_MS);
+    function onVisibility() {
+      if (document.hidden) {
+        clearTimeout(timer);
+        timer = undefined;
+      } else if (timer === undefined && !inflight) {
+        delay = POLL_BASE_MS;
+        void tick();
+      }
+    }
+
+    document.addEventListener("visibilitychange", onVisibility);
+    void tick();
 
     return () => {
       active = false;
-      clearInterval(timer);
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [id, status]);
+  }, [id, stopped]);
 
   async function copyCode(code: string) {
     try {
@@ -63,8 +96,22 @@ export function OrderStatus({ id }: { id: string }) {
     }
   }
 
+  return (
+    <div aria-live="polite">
+      <OrderView order={order} error={error} notFound={notFound} copied={copied} onCopy={copyCode} />
+    </div>
+  );
+}
+
+type ViewProps = { order: Order | null; error: string; notFound: boolean; copied: boolean; onCopy: (code: string) => void };
+
+function OrderView({ order, error, notFound, copied, onCopy }: ViewProps) {
+  if (notFound) {
+    return <p className="error" role="alert">Pedido não encontrado.</p>;
+  }
+
   if (error && !order) {
-    return <p className="error">{error}</p>;
+    return <p className="error" role="alert">{error}</p>;
   }
 
   if (!order) {
@@ -89,6 +136,7 @@ export function OrderStatus({ id }: { id: string }) {
       <section className="panel" style={{ gridTemplateColumns: "1fr" }}>
         <b>Pagamento confirmado.</b>
         <p>{order.status === "paid_failed" ? "Estamos finalizando sua foto. Esta página atualiza sozinha." : "A imagem desse pedido não está mais disponível."}</p>
+        {order.status === "paid" ? <div className="row"><Link className="btn" href="/criar">Criar outra</Link></div> : null}
       </section>
     );
   }
@@ -114,11 +162,11 @@ export function OrderStatus({ id }: { id: string }) {
           <>
             <div className="code">{pix.brCode}</div>
             <div className="row" style={{ marginTop: 12 }}>
-              <button className="btn alt" onClick={() => copyCode(pix.brCode)}>{copied ? "Copiado!" : "Copiar código"}</button>
+              <button className="btn alt" onClick={() => onCopy(pix.brCode)}>{copied ? "Copiado!" : "Copiar código"}</button>
             </div>
           </>
         ) : null}
-        {error ? <p className="error">{error}</p> : null}
+        {error ? <p className="error" role="alert">{error}</p> : null}
       </div>
     </section>
   );

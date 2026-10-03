@@ -5,7 +5,18 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:6600";
 
 export const FALLBACK_MESSAGE = "Algo deu errado. Tente de novo.";
 
-export class ApiError extends Error {}
+export class ApiError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
+export function statusOf(caught: unknown): number {
+  return caught instanceof ApiError ? caught.status : 0;
+}
 
 export function messageOf(caught: unknown): string {
   return caught instanceof ApiError ? caught.message : FALLBACK_MESSAGE;
@@ -28,13 +39,13 @@ async function readOrder(response: Response): Promise<Order> {
         ? json.error
         : FALLBACK_MESSAGE;
 
-    throw new ApiError(message);
+    throw new ApiError(message, response.status);
   }
 
   const parsed = OrderSchema.safeParse(json);
 
   if (!parsed.success) {
-    throw new ApiError(FALLBACK_MESSAGE);
+    throw new ApiError(FALLBACK_MESSAGE, 0);
   }
 
   return parsed.data;
@@ -44,7 +55,7 @@ async function request(url: string, init: RequestInit): Promise<Response> {
   try {
     return await fetch(url, init);
   } catch {
-    throw new ApiError(FALLBACK_MESSAGE);
+    throw new ApiError(FALLBACK_MESSAGE, 0);
   }
 }
 
