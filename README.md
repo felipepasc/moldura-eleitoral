@@ -1,18 +1,39 @@
 # Moldura Eleitoral
 
-Monorepo: `common` (schemas), `api` (Fastify), `web` (Next.js).
+Monorepo pnpm: `common` (schemas e candidatos), `api` (Fastify + Postgres + MinIO + sharp), `web` (Next.js).
+O cliente vê a prévia grátis (com marca d'água), paga R$ 3,99 por Pix (AbacatePay) e baixa o PNG sem marca d'água, montado no servidor depois do pagamento.
 
-Rodar infra local: `docker compose up -d` (precisa do Docker Desktop aberto).
+## Rodar local
 
-## AbacatePay (docs)
+1. `docker compose up -d` (Docker Desktop aberto): Postgres :5440 e MinIO :9300 (console :9301), ambos só em 127.0.0.1.
+2. `pnpm install`
+3. `api/.env`: copie de `api/.env.example` e preencha `ABACATEPAY_API_KEY` e `ABACATEPAY_WEBHOOK_SECRET` (16+ caracteres aleatórios; use 24+). `web/.env.local`: copie de `web/.env.example` (`NEXT_PUBLIC_API_URL`).
+   Os arquivos `.env*` ficam fora do git (só `.env.example` e `.env.test` são versionados). Nunca commite segredos. Esta pasta está no OneDrive: mantenha o `api/.env` fora de pastas sincronizadas ou exclua-o da sincronização.
+4. `pnpm --filter @moldura/api db:setup`
+5. `pnpm dev:api` (http://localhost:6600) e `pnpm dev:web` (http://localhost:6610). O `dev:web` copia as molduras para `web/public/frames` antes de subir.
+
+`web/AGENTS.md` (gerado pelo Next) avisa que esta versão do Next tem mudanças incompatíveis; consulte `web/node_modules/next/dist/docs/` antes de mexer no web.
+
+## Testes
+
+`pnpm test` (precisa do Postgres do passo 1; cria o banco `moldura_test` sozinho) e `pnpm typecheck`. Os testes da api usam armazenamento em memória; o MinIO real só entra no uso local/E2E.
+
+## Molduras
+
+Ficam em `api/assets/frames/<id>.png` (1080×1080, anel opaco, centro e cantos transparentes, sem rostos). `pnpm --filter @moldura/api frames:placeholder` regenera os placeholders; as molduras finais são geradas pelo Codex e validadas por `pnpm --filter @moldura/api test`.
+Os arquivos públicos `/frames/<id>.png` (servidos pelo web) são as molduras **sem** marca d'água, de propósito: são só o anel decorativo, sem a foto do cliente. A marca d'água existe apenas na prévia do navegador.
+
+## AbacatePay
 
 Conferido em docs.abacatepay.com (API v2, `https://api.abacatepay.com/v2`):
 
+- Webhook: configure no painel a URL `https://<api>/webhooks/abacatepay?webhookSecret=<ABACATEPAY_WEBHOOK_SECRET>`. O evento de Pix pago é `transparent.completed` (também existem `transparent.refunded`, `transparent.disputed`, `transparent.lost`).
+- A `api` **reconsulta** o status do Pix antes de liberar qualquer pedido; o webhook sozinho não libera nada. Sem webhook, o polling da tela do pedido (consulta a cada poucos segundos) também libera.
 - A API documenta 9 status: PENDING, PAID, EXPIRED, CANCELLED, REFUNDED, FAILED, UNDER_DISPUTE, APPROVED, REDEEMED. O cliente mapeia PENDING, PAID, EXPIRED, CANCELLED e REFUNDED para eles mesmos, FAILED para CANCELLED e todo o resto (UNDER_DISPUTE, APPROVED, REDEEMED, valores desconhecidos) para PENDING. Só o literal PAID vira PAID.
-- Evento de webhook de Pix pago: `transparent.completed` (também existem `transparent.refunded`, `transparent.disputed`, `transparent.lost`).
-- O webhook traz o header `X-Webhook-Signature` (HMAC-SHA256 do corpo bruto com a chave pública da AbacatePay). Não dependemos dele: confiamos no segredo na query (`?webhookSecret=`) e sempre reconsultamos o status do Pix na API antes de marcar como pago.
+- O webhook traz o header `X-Webhook-Signature` (HMAC-SHA256 do corpo bruto com a chave pública da AbacatePay). Não dependemos dele: confiamos no segredo na query e reconsultamos o status do Pix.
 - `brCodeBase64` pode vir com o prefixo `data:image/png;base64,`.
-- Os campos dentro de `data` do webhook `transparent.completed` não foram confirmados.
+- Os campos dentro de `data` do webhook `transparent.completed` não foram confirmados (a api procura qualquer `id`/`externalId` no corpo).
+- Dev/sandbox é definido pela chave de API usada. `ABACATEPAY_BASE_URL` permite apontar para outro servidor.
 
 ## API
 
@@ -22,12 +43,31 @@ Conferido em docs.abacatepay.com (API v2, `https://api.abacatepay.com/v2`):
 
 ## Retenção de dados
 
-A limpeza roda a cada hora (`cleanupOrders`) e apaga arquivo e registro:
+A limpeza roda uma vez na subida da api e depois a cada hora (`cleanupOrders`) e apaga arquivo e registro:
 
 - Pedidos `pending`/`expired`: após 24 h da criação. Antes de apagar, a limpeza reconsulta o Pix na AbacatePay (se pagou, o pedido segue as regras de pago; se a AbacatePay estiver fora do ar, o pedido é pulado e tentado na hora seguinte). A linha é apagada primeiro e a foto depois; se a foto não puder ser removida, sai um aviso de foto órfã e a regra do MinIO (2 dias) é a rede de segurança.
-- Pedidos `paid`: após 7 dias do pagamento (ou da criação, se não houver data de pagamento). Imagem final e foto que tenha sobrado são removidas primeiro; a linha inteira (IP, código Pix) só é apagada se todas as remoções deram certo, senão tenta de novo na hora seguinte. Qualquer `photoKey` que sobrou de uma remoção que falhou é apagada na hora.
-- Pedidos `paid_failed` (cliente pagou e não recebeu a imagem): após 3 dias da criação, com um aviso `warn` no log (identificado só por um hash curto) depois do apagamento. Como a foto some do MinIO em 2 dias (regra de ciclo de vida de `photos/`), o operador precisa agir (reembolso ou remontagem) dentro desses 2 dias.
+- Pedidos `paid`: após 7 dias do pagamento (ou da criação, se não houver data de pagamento). Imagem final e foto que tenha sobrado são removidas primeiro; a linha inteira (IP, código Pix) só é apagada se todas as remoções deram certo, senão tenta de novo na hora seguinte.
+- Pedidos `paid_failed` (cliente pagou e não recebeu a imagem): após 3 dias da criação, com um aviso `warn` no log (identificado só por um hash curto) depois do apagamento. Como a foto some do MinIO em 2 dias, o operador precisa agir (reembolso ou remontagem) dentro desses 2 dias.
 - `webhook_events`: após 30 dias.
-- A limpeza roda uma vez na subida da api e depois a cada hora.
 
-A regra de ciclo de vida do MinIO (`photos/` 2 dias, `results/` 8 dias) é só uma rede de segurança. Se ela não puder ser aplicada, a api apenas registra um aviso na subida: em produção, o operador precisa vigiar esse aviso.
+A regra de ciclo de vida do MinIO (`photos/` 2 dias, `results/` 8 dias) é só uma rede de segurança. Se ela não puder ser aplicada, a api apenas registra o aviso "regra de ciclo de vida" (texto: "Não consegui configurar a expiração automática do bucket") na subida: em produção, o operador precisa vigiar esse aviso.
+
+## Checklist de produção
+
+- TLS na api e no MinIO (o link de download assinado usa o endereço do MinIO e precisa ser alcançável pelo navegador).
+- Usuário dedicado do MinIO, limitado ao bucket (não use o root do `docker-compose.yml`, que é só de desenvolvimento).
+- Postgres e MinIO escutando só em localhost/rede privada.
+- O proxy não pode registrar query strings nos logs: o segredo do webhook viaja em `?webhookSecret=`.
+- Configurar `TRUST_PROXY` com o número real de proxies e manter a api atrás deles.
+- Vigiar o aviso da regra de ciclo de vida do MinIO.
+- O web já envia `Referrer-Policy`.
+
+## Verificação ponta a ponta (sem a AbacatePay real)
+
+Sem chave real, o fluxo foi verificado com um servidor falso da AbacatePay (`/v2/transparents/create` e `/check`) via `ABACATEPAY_BASE_URL`, com Postgres e MinIO reais: pedido 201 sem campos internos, foto em `photos/`, após o Pix pago o pedido vira `paid`, o PNG baixado tem 1080×1080, foto no círculo, moldura por cima e sem marca d'água, `results/<id>.png` existe e `photos/<id>.jpg` some; webhook 200, repetido vira `duplicate`, segredo errado dá 401; os logs não trazem segredo, id do pedido nem chaves de armazenamento; a limpeza apaga linha e arquivo. Falta repetir com uma chave de desenvolvimento da AbacatePay para confirmar o formato real das respostas e dos webhooks.
+
+## Pendências
+
+- Hospedagem e domínio.
+- Testar com a AbacatePay real (chave de desenvolvimento): formato de `data` do webhook e simulação de pagamento.
+- Validar com advogado eleitoral a cobrança por material de apoio e o uso dos nomes dos candidatos antes de lançar.
