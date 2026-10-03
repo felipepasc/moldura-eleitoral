@@ -22,7 +22,7 @@
 - Foto original é apagada assim que o pedido vira `paid`; pedidos não pagos são apagados após **24 h**; imagem pronta é apagada após **7 dias**.
 - Convenções do CRM: identificadores em inglês, textos de tela/erro em português; imports internos por `@/` em `api` e `web`; **`common` usa imports relativos**; import em uma linha; sem `.js` em import interno; `async/await` (sem `.then`); `if/else` sempre com `{}` (só a guarda de uma linha sem `else` fica sem chave); queries Drizzle com uma chamada por linha; respostas HTTP pelos helpers de `@/core/http-fastify`.
 - Segredos só em `.env` (nunca no repositório); a chave da AbacatePay só existe na `api`.
-- Portas locais (evitam o CRM): Postgres **5433**, MinIO **9200/9201**, api **6600**, web **6610**.
+- Portas locais (evitam o CRM): Postgres **5440**, MinIO **9300/9301**, api **6600**, web **6610**.
 - Commits terminam com as linhas de atribuição que o ambiente exige.
 
 ## Review Focus
@@ -44,7 +44,7 @@ Entradas e falhas que a spec implica mas que nenhum fluxo feliz exercita; cada u
 - Create: `package.json`, `pnpm-workspace.yaml`, `tsconfig.base.json`, `.gitignore`, `docker-compose.yml`, `README.md`
 
 **Interfaces:**
-- Produces: workspace com pacotes `common`, `api`, `web` (criados nas próximas tarefas); Postgres em `localhost:5433` (user/senha/db `moldura`), MinIO em `localhost:9200` (console 9201, `moldura` / `moldura-secret`).
+- Produces: workspace com pacotes `common`, `api`, `web` (criados nas próximas tarefas); Postgres em `localhost:5440` (user/senha/db `moldura`), MinIO em `localhost:9300` (console 9301, `moldura` / `moldura-secret`).
 
 - [ ] **Step 1: Inicializar git e arquivos da raiz**
 
@@ -121,7 +121,7 @@ services:
       POSTGRES_PASSWORD: moldura
       POSTGRES_DB: moldura
     ports:
-      - "5433:5432"
+      - "5440:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
 
@@ -132,8 +132,8 @@ services:
       MINIO_ROOT_USER: moldura
       MINIO_ROOT_PASSWORD: moldura-secret
     ports:
-      - "9200:9000"
-      - "9201:9001"
+      - "9300:9000"
+      - "9301:9001"
     volumes:
       - miniodata:/data
 
@@ -474,11 +474,11 @@ pnpm --filter @moldura/api add -D typescript tsx @types/node drizzle-kit
 
 ```
 PORT=6600
-DATABASE_URL=postgres://moldura:moldura@localhost:5433/moldura
+DATABASE_URL=postgres://moldura:moldura@localhost:5440/moldura
 WEB_ORIGIN=http://localhost:6610
 TRUST_PROXY=false
 MINIO_ENDPOINT=localhost
-MINIO_PORT=9200
+MINIO_PORT=9300
 MINIO_USE_SSL=false
 MINIO_ACCESS_KEY=moldura
 MINIO_SECRET_KEY=moldura-secret
@@ -492,11 +492,11 @@ ABACATEPAY_WEBHOOK_SECRET=
 
 ```
 PORT=6601
-DATABASE_URL=postgres://moldura:moldura@localhost:5433/moldura_test
+DATABASE_URL=postgres://moldura:moldura@localhost:5440/moldura_test
 WEB_ORIGIN=http://localhost:6610
 TRUST_PROXY=false
 MINIO_ENDPOINT=localhost
-MINIO_PORT=9200
+MINIO_PORT=9300
 MINIO_USE_SSL=false
 MINIO_ACCESS_KEY=moldura
 MINIO_SECRET_KEY=moldura-secret
@@ -526,7 +526,7 @@ const EnvSchema = z.object({
   WEB_ORIGIN: z.string().default("http://localhost:6610"),
   TRUST_PROXY: BooleanFlag,
   MINIO_ENDPOINT: z.string().default("localhost"),
-  MINIO_PORT: z.coerce.number().default(9200),
+  MINIO_PORT: z.coerce.number().default(9300),
   MINIO_USE_SSL: BooleanFlag,
   MINIO_ACCESS_KEY: z.string().min(1),
   MINIO_SECRET_KEY: z.string().min(1),
@@ -3541,7 +3541,7 @@ O cliente vê a prévia grátis (com marca d'água), paga R$ 3,99 por Pix (Abaca
 
 ## Rodar local
 
-1. `docker compose up -d` (Docker Desktop aberto): Postgres :5433, MinIO :9200 (console :9201).
+1. `docker compose up -d` (Docker Desktop aberto): Postgres :5440, MinIO :9300 (console :9301).
 2. `pnpm install`
 3. `api/.env`: copie de `api/.env.example` e preencha `ABACATEPAY_API_KEY` e `ABACATEPAY_WEBHOOK_SECRET` (24+ caracteres aleatórios). `web/.env.local`: copie de `web/.env.example`.
 4. `pnpm --filter @moldura/api db:setup`
@@ -3580,7 +3580,7 @@ Com uma chave de **desenvolvimento** da AbacatePay em `api/.env` e o webhook apo
 3. Pague o Pix pelo método de simulação do ambiente de desenvolvimento da AbacatePay (veja na documentação como simular o pagamento em dev).
 4. Em até alguns segundos (polling de 3 s) a tela vira "Pagamento confirmado" com o botão **Baixar foto**.
 5. Baixe o PNG e confira: 1080×1080, foto dentro do círculo, moldura por cima, **sem** marca d'água.
-6. No console do MinIO (http://localhost:9201), confira que `photos/<id>.jpg` foi apagada e existe `results/<id>.png`.
+6. No console do MinIO (http://localhost:9301), confira que `photos/<id>.jpg` foi apagada e existe `results/<id>.png`.
 
 Expected: todos os passos funcionam. Anote no README qualquer diferença entre a AbacatePay real e o que o plano assumiu.
 

@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: moldura
       POSTGRES_DB: moldura
     ports:
-      - "5433:5432"
+      - "5440:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
 
@@ -17,8 +17,8 @@ services:
       MINIO_ROOT_USER: moldura
       MINIO_ROOT_PASSWORD: moldura-secret
     ports:
-      - "9200:9000"
-      - "9201:9001"
+      - "9300:9000"
+      - "9301:9001"
     volumes:
       - miniodata:/data
 
