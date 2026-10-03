@@ -12,6 +12,7 @@ import type { TestApp } from "@/scripts/fixtures/test-app";
 
 const HOUR = 3600_000;
 const DAY = 24 * HOUR;
+const LINE_BREAK = String.fromCharCode(10);
 let clock = Date.now();
 let t: TestApp;
 let logs = "";
@@ -41,8 +42,7 @@ async function insertOrder(values: Partial<typeof orders.$inferInsert> & { pixId
       framing: { zoom: 1, offsetX: 0, offsetY: 0 },
       pixBrCode: "000",
       pixBrCodeBase64: "QUJD",
-      ipAddress: "127.0.0.1",
-      expiresAt: new Date(clock + 1800_000),
+        expiresAt: new Date(clock + 1800_000),
       ...values,
     })
     .returning();
@@ -130,7 +130,7 @@ test("paid_failed: com menos de 3 dias não mexe; com mais apaga e avisa o opera
   assert.equal(t.storage.files.has("photos/f1.jpg"), true);
   assert.equal(await exists(old.id), false);
   assert.equal(t.storage.files.has("photos/f2.jpg"), false);
-  assert.ok(logs.includes("Pedido pago sem imagem, apagado"));
+  assert.ok(logs.includes("Pedido pago sem imagem apagado"));
   assert.ok(logs.includes(orderRef(old.id)));
   assert.ok(!logs.includes(old.id));
 });
@@ -253,4 +253,75 @@ test("a limpeza não loga chaves de arquivo nem ids de pedido, nem quando a remo
   assert.ok(!logs.includes("photos/"));
   assert.ok(!logs.includes(old.id));
   assert.ok(!/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/.test(logs));
+});
+
+test("teto de retenção: com a AbacatePay fora do ar, não pago >3 dias e paid_failed >5 dias somem; o resto fica", async () => {
+  t.gateway.failCheck = true;
+  await t.storage.put("photos/u25.jpg", Buffer.from("x"), "image/jpeg");
+  const recent = await insertOrder({ pixId: "h1", photoKey: "photos/u25.jpg", createdAt: new Date(clock - 25 * HOUR) });
+  await t.storage.put("photos/u4.jpg", Buffer.from("x"), "image/jpeg");
+  const old = await insertOrder({ pixId: "h2", photoKey: "photos/u4.jpg", createdAt: new Date(clock - 4 * DAY) });
+  const expiredOld = await insertOrder({ pixId: "h3", status: "expired", createdAt: new Date(clock - 4 * DAY) });
+  const failed4 = await insertOrder({ pixId: "h4", status: "paid_failed", createdAt: new Date(clock - 4 * DAY) });
+  const failed6 = await insertOrder({ pixId: "h5", status: "paid_failed", createdAt: new Date(clock - 6 * DAY) });
+
+  const result = await cleanupOrders(t.ctx);
+
+  assert.equal(result.removed, 3);
+  assert.equal(await exists(recent.id), true);
+  assert.equal(await exists(old.id), false);
+  assert.equal(await exists(expiredOld.id), false);
+  assert.equal(t.storage.files.has("photos/u4.jpg"), false);
+  assert.equal(await exists(failed4.id), true);
+  assert.equal(await exists(failed6.id), false);
+});
+
+test("o teto de retenção não apaga pedido que mudou para paid (exclusão protegida)", async () => {
+  const row = await insertOrder({ pixId: "h6", createdAt: new Date(clock - 4 * DAY) });
+  await t.db
+    .update(orders)
+    .set({ status: "paid", paidAt: new Date(clock) })
+    .where(eq(orders.id, row.id));
+
+  assert.equal(await deleteGuarded(t.ctx, row.id, ["pending", "expired"], new Date(clock - 3 * DAY)), null);
+  assert.equal(await exists(row.id), true);
+});
+
+test("pedido pago sem imagem: criação do paid_failed e apagamento logam pixId e nada mais sensível", async () => {
+  await t.storage.put("photos/pf.jpg", Buffer.from("not an image"), "image/jpeg");
+  const row = await insertOrder({ pixId: "pix_trace_1", photoKey: "photos/pf.jpg" });
+  t.gateway.statuses.set("pix_trace_1", "PAID");
+
+  await t.app.inject({ method: "GET", url: `/orders/${row.id}` });
+
+  const created = logs.split(LINE_BREAK).filter((line) => line.includes("Pedido pago sem imagem"));
+  assert.equal(created.length, 1);
+  assert.ok(created[0].includes("pix_trace_1"));
+  assert.ok(created[0].includes(orderRef(row.id)));
+
+  await t.db
+    .update(orders)
+    .set({ createdAt: new Date(clock - 4 * DAY) })
+    .where(eq(orders.id, row.id));
+  logs = "";
+
+  const result = await cleanupOrders(t.ctx);
+
+  const deleted = logs.split(LINE_BREAK).filter((line) => line.includes("Pedido pago sem imagem apagado"));
+  assert.equal(result.removed, 1);
+  assert.equal(deleted.length, 1);
+  assert.ok(deleted[0].includes("pix_trace_1"));
+  assert.ok(deleted[0].includes(orderRef(row.id)));
+  assert.ok(!logs.includes("photos/"));
+  assert.ok(!logs.includes(row.id));
+});
+
+test("pixId não aparece em nenhum outro log da limpeza", async () => {
+  await insertOrder({ pixId: "pix_quiet_9", createdAt: new Date(clock - 4 * DAY) });
+  t.gateway.failCheck = true;
+
+  await cleanupOrders(t.ctx);
+
+  assert.ok(logs.length > 0);
+  assert.ok(!logs.includes("pix_quiet_9"));
 });

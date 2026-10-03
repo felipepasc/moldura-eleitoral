@@ -7,6 +7,65 @@ import { orders } from "@/modules/orders/schema";
 import type { OrderRow } from "@/modules/orders/schema";
 import { composeImage } from "@/modules/orders/services/compose";
 
+const CHECK_INTERVAL_MS = 5_000;
+const RECOMPOSE_INTERVAL_MS = 30_000;
+const MAX_TRACKED_ORDERS = 5_000;
+
+type Tracking = { checkedAt: number; recomposedAt: number };
+
+const trackingByContext = new WeakMap<OrderContext, Map<string, Tracking>>();
+
+function trackingOf(ctx: OrderContext): Map<string, Tracking> {
+  let tracking = trackingByContext.get(ctx);
+
+  if (!tracking) {
+    tracking = new Map();
+    trackingByContext.set(ctx, tracking);
+  }
+
+  return tracking;
+}
+
+function touch(ctx: OrderContext, id: string, field: keyof Tracking): void {
+  const tracking = trackingOf(ctx);
+  const now = ctx.now().getTime();
+
+  if (!tracking.has(id) && tracking.size >= MAX_TRACKED_ORDERS) {
+    for (const [key, entry] of tracking) {
+      if (now - Math.max(entry.checkedAt, entry.recomposedAt) > RECOMPOSE_INTERVAL_MS) {
+        tracking.delete(key);
+      }
+    }
+
+    // ainda cheio: descarta o mais antigo (a ordem de inserção do Map)
+    const oldest = tracking.keys().next();
+
+    if (tracking.size >= MAX_TRACKED_ORDERS && !oldest.done) {
+      tracking.delete(oldest.value);
+    }
+  }
+
+  const entry = tracking.get(id) ?? { checkedAt: 0, recomposedAt: 0 };
+  entry[field] = now;
+  tracking.set(id, entry);
+}
+
+function isRecent(ctx: OrderContext, id: string, field: keyof Tracking, windowMs: number): boolean {
+  const entry = trackingOf(ctx).get(id);
+
+  return Boolean(entry && entry[field] > 0 && ctx.now().getTime() - entry[field] < windowMs);
+}
+
+export function forgetOrder(ctx: OrderContext, id: string): void {
+  trackingOf(ctx).delete(id);
+}
+
+export function trackedOrderCount(ctx: OrderContext): number {
+  return trackingOf(ctx).size;
+}
+
+export type SyncOptions = { force?: boolean };
+
 export async function findOrder(ctx: OrderContext, id: string): Promise<OrderRow | null> {
   const [row] = await ctx.db
     .select()
@@ -65,29 +124,60 @@ export async function confirmOrder(ctx: OrderContext, row: OrderRow): Promise<Or
 
     const failed = await updateOrder(ctx, row.id, { status: "paid_failed" }, ne(orders.status, "paid"));
 
+    if (row.status !== "paid_failed") {
+      // O operador precisa do id da cobrança para reembolsar na AbacatePay: este é um dos dois únicos logs com pixId.
+      ctx.logger.error({ orderRef: orderRef(row.id), pixId: row.pixId }, "Pedido pago sem imagem");
+    }
+
     return failed ?? row;
   }
 }
 
-export async function syncOrder(ctx: OrderContext, id: string): Promise<OrderRow | null> {
+export async function syncOrder(ctx: OrderContext, id: string, options: SyncOptions = {}): Promise<OrderRow | null> {
   const row = await findOrder(ctx, id);
 
   if (!row) {
+    forgetOrder(ctx, id);
+
     return null;
   }
 
   if (row.status === "paid") {
+    forgetOrder(ctx, id);
+
     return row;
   }
 
   if (row.status === "paid_failed") {
-    return confirmOrder(ctx, row);
+    if (!options.force && isRecent(ctx, id, "recomposedAt", RECOMPOSE_INTERVAL_MS)) {
+      return row;
+    }
+
+    touch(ctx, id, "recomposedAt");
+    const recomposed = await confirmOrder(ctx, row);
+
+    if (recomposed.status === "paid") {
+      forgetOrder(ctx, id);
+    }
+
+    return recomposed;
   }
 
+  if (!options.force && isRecent(ctx, id, "checkedAt", CHECK_INTERVAL_MS)) {
+    return row;
+  }
+
+  touch(ctx, id, "checkedAt");
   const pixStatus = await ctx.gateway.checkPix(row.pixId);
 
   if (pixStatus === "PAID") {
-    return confirmOrder(ctx, row);
+    const confirmed = await confirmOrder(ctx, row);
+
+    if (confirmed.status === "paid") {
+      forgetOrder(ctx, id);
+    }
+
+    return confirmed;
   }
 
   if (row.status === "expired") {

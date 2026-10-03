@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch --env-file=.env src/main.ts",
-    "start": "tsx --env-file=.env src/main.ts",
+    "start": "tsx --env-file-if-exists=.env src/main.ts",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:setup": "tsx --env-file=.env src/scripts/setup-db.ts",
@@ -24,13 +24,13 @@
     "pino": "^10.4.0",
     "postgres": "^3.4.9",
     "sharp": "^0.35.5",
+    "tsx": "^4.23.15",
     "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/node": "^26.6.4",
     "drizzle-kit": "^0.31.11",
     "opentype.js": "^2.0.0",
-    "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   }
 }

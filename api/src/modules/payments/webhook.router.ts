@@ -125,7 +125,7 @@ export function webhookRouter(ctx: OrderContext, secret: string, perMinute: numb
 
       try {
         for (const order of matched) {
-          await syncOrder(ctx, order.id);
+          await syncOrder(ctx, order.id, { force: true });
         }
       } catch (error) {
         ctx.logger.error({ err: error, event: body.data.event, orderRefs: matched.map((order) => orderRef(order.id)) }, "Falha ao sincronizar o pedido pelo webhook");

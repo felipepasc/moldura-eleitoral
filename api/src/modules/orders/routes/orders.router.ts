@@ -59,7 +59,7 @@ export function ordersRouter(ctx: OrderContext, ordersPerMinute: number, readsPe
       const photo = await file.toBuffer();
 
       try {
-        const row = await createOrder(ctx, { ...parsed.data, photo, ipAddress: req.ip });
+        const row = await createOrder(ctx, { ...parsed.data, photo });
         const view = await toOrderView(ctx, row);
 
         return created(reply, view);

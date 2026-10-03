@@ -3,7 +3,7 @@ import { orderRef } from "@/core/log-ref";
 import type { OrderContext } from "@/modules/orders/context";
 import { orders } from "@/modules/orders/schema";
 import type { OrderRow } from "@/modules/orders/schema";
-import { syncOrder } from "@/modules/orders/services/sync-order";
+import { forgetOrder, syncOrder } from "@/modules/orders/services/sync-order";
 import { webhookEvents } from "@/modules/payments/schema";
 
 const HOUR_MS = 3600_000;
@@ -11,6 +11,8 @@ const DAY_MS = 24 * HOUR_MS;
 const UNPAID_TTL_MS = DAY_MS;
 const PAID_TTL_MS = 7 * DAY_MS;
 const PAID_FAILED_TTL_MS = 3 * DAY_MS;
+const UNPAID_HARD_CAP_MS = 3 * DAY_MS;
+const PAID_FAILED_HARD_CAP_MS = 5 * DAY_MS;
 const WEBHOOK_EVENT_TTL_MS = 30 * DAY_MS;
 
 type OrderStatus = OrderRow["status"];
@@ -41,36 +43,52 @@ export async function deleteGuarded(ctx: OrderContext, id: string, statuses: Ord
   return deleted ?? null;
 }
 
-// Confirma na AbacatePay antes de apagar; devolve true se o pedido foi apagado.
-async function deleteUnconfirmed(ctx: OrderContext, row: OrderRow, statuses: OrderStatus[], createdBefore: Date, deletedMessage: string | null): Promise<boolean> {
-  let current: OrderRow | null;
+type DeletePolicy = {
+  statuses: OrderStatus[];
+  softBefore: Date;
+  hardBefore: Date;
+  deletedMessage: string | null;
+};
+
+// Confirma na AbacatePay antes de apagar; se a consulta falhar, só o teto máximo de retenção apaga mesmo assim.
+async function deleteUnconfirmed(ctx: OrderContext, row: OrderRow, policy: DeletePolicy): Promise<boolean> {
+  const beyondHardCap = row.createdAt < policy.hardBefore;
 
   try {
-    current = await syncOrder(ctx, row.id);
+    const current = await syncOrder(ctx, row.id, { force: true });
+
+    if (!current || !policy.statuses.includes(current.status)) {
+      return false;
+    }
+
+    if (current.status === "paid_failed") {
+      await ctx.gateway.checkPix(current.pixId);
+    }
   } catch (error) {
-    ctx.logger.warn({ err: error, orderRef: orderRef(row.id) }, "Não consegui consultar a AbacatePay na limpeza; tento de novo na próxima");
+    ctx.logger.warn({ err: error, orderRef: orderRef(row.id) }, "Não consegui consultar a AbacatePay na limpeza");
 
-    return false;
+    if (!beyondHardCap) {
+      return false;
+    }
   }
 
-  if (!current || !statuses.includes(current.status)) {
-    return false;
-  }
-
-  const deleted = await deleteGuarded(ctx, row.id, statuses, createdBefore);
+  const deleted = await deleteGuarded(ctx, row.id, policy.statuses, policy.softBefore);
 
   if (!deleted) {
     return false;
   }
 
-  if (deletedMessage) {
-    ctx.logger.warn({ orderRef: orderRef(row.id) }, deletedMessage);
+  forgetOrder(ctx, row.id);
+
+  if (policy.deletedMessage) {
+    // Segundo e último log com pixId: o operador precisa dele para reembolsar na AbacatePay.
+    ctx.logger.warn({ orderRef: orderRef(row.id), pixId: row.pixId }, policy.deletedMessage);
   }
 
   const removed = await removeQuietly(ctx, deleted.photoKey);
 
   if (!removed) {
-    ctx.logger.warn({ orderRef: orderRef(row.id) }, "Foto órfã; a regra de ciclo de vida do MinIO apaga em 2 dias");
+    ctx.logger.warn({ orderRef: orderRef(row.id) }, "Foto órfã; a regra de ciclo de vida do MinIO apaga em 4 dias");
   }
 
   return true;
@@ -87,7 +105,9 @@ export async function cleanupOrders(ctx: OrderContext): Promise<{ removed: numbe
     .where(and(inArray(orders.status, ["pending", "expired"]), lt(orders.createdAt, unpaidBefore)));
 
   for (const row of unpaid) {
-    if (await deleteUnconfirmed(ctx, row, ["pending", "expired"], unpaidBefore, null)) {
+    const policy = { statuses: ["pending", "expired"] as OrderStatus[], softBefore: unpaidBefore, hardBefore: new Date(now - UNPAID_HARD_CAP_MS), deletedMessage: null };
+
+    if (await deleteUnconfirmed(ctx, row, policy)) {
       removed += 1;
     }
   }
@@ -108,11 +128,13 @@ export async function cleanupOrders(ctx: OrderContext): Promise<{ removed: numbe
       continue;
     }
 
-    await ctx.db
+    const deletedPaid = await ctx.db
       .delete(orders)
-      .where(and(eq(orders.id, row.id), eq(orders.status, "paid")));
+      .where(and(eq(orders.id, row.id), eq(orders.status, "paid")))
+      .returning({ id: orders.id });
 
-    removed += 1;
+    forgetOrder(ctx, row.id);
+    removed += deletedPaid.length;
   }
 
   const failedBefore = new Date(now - PAID_FAILED_TTL_MS);
@@ -122,7 +144,9 @@ export async function cleanupOrders(ctx: OrderContext): Promise<{ removed: numbe
     .where(and(eq(orders.status, "paid_failed"), lt(orders.createdAt, failedBefore)));
 
   for (const row of failedOld) {
-    if (await deleteUnconfirmed(ctx, row, ["paid_failed"], failedBefore, "Pedido pago sem imagem, apagado")) {
+    const policy = { statuses: ["paid_failed"] as OrderStatus[], softBefore: failedBefore, hardBefore: new Date(now - PAID_FAILED_HARD_CAP_MS), deletedMessage: "Pedido pago sem imagem apagado" };
+
+    if (await deleteUnconfirmed(ctx, row, policy)) {
       removed += 1;
     }
   }

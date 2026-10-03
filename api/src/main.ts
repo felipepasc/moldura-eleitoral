@@ -1,4 +1,4 @@
-import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { buildApp } from "@/app";
 import { createDb } from "@/core/db";
 import { env } from "@/core/env";
@@ -20,7 +20,7 @@ async function main() {
     db,
     storage,
     gateway: createAbacatePayGateway({ apiKey: env.ABACATEPAY_API_KEY, baseUrl: env.ABACATEPAY_BASE_URL }),
-    framesDir: path.resolve("assets/frames"),
+    framesDir: fileURLToPath(new URL("../assets/frames", import.meta.url)),
     logger,
     now: () => new Date(),
   };
@@ -33,12 +33,22 @@ async function main() {
     ordersPerMinute: 10,
   });
 
+  let cleaning = false;
+
   async function runCleanup() {
+    if (cleaning) {
+      return;
+    }
+
+    cleaning = true;
+
     try {
       const result = await cleanupOrders(ctx);
       logger.info(result, "Limpeza concluída");
     } catch (error) {
       logger.error({ err: error }, "Falha na limpeza");
+    } finally {
+      cleaning = false;
     }
   }
 

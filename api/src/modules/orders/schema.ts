@@ -13,7 +13,6 @@ export const orders = pgTable("orders", {
   pixBrCode: text("pix_br_code").notNull(),
   pixBrCodeBase64: text("pix_br_code_base64").notNull(),
   resultKey: text("result_key"),
-  ipAddress: text("ip_address").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   paidAt: timestamp("paid_at", { withTimezone: true }),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),

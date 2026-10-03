@@ -10,7 +10,7 @@ export interface Storage {
   signedUrl(key: string, seconds: number): Promise<string>;
 }
 
-const PHOTO_EXPIRY_DAYS = 2;
+const PHOTO_EXPIRY_DAYS = 4;
 const RESULT_EXPIRY_DAYS = 8;
 
 export function createMinioStorage(): Storage {

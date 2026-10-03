@@ -5,12 +5,12 @@ import multipart from "@fastify/multipart";
 import rateLimit from "@fastify/rate-limit";
 import { PHOTO_MAX_BYTES } from "@moldura/common";
 import { trustHops } from "@/core/trust-proxy";
-import { notFound, serverErr, tooLarge } from "@/core/http-fastify";
+import { badReq, notFound, serverErr, tooLarge } from "@/core/http-fastify";
 import type { OrderContext } from "@/modules/orders/context";
 import { ordersRouter } from "@/modules/orders/routes/orders.router";
 import { webhookRouter } from "@/modules/payments/webhook.router";
 
-const DEFAULT_ORDER_READS_PER_MINUTE = 60;
+const DEFAULT_ORDER_READS_PER_MINUTE = 300;
 const DEFAULT_WEBHOOK_PER_MINUTE = 120;
 
 export type AppDeps = {
@@ -34,13 +34,25 @@ export async function buildApp(deps: AppDeps) {
   await app.register(rateLimit, { global: false });
   await app.register(multipart, { limits: { files: 1, fields: 5, fileSize: PHOTO_MAX_BYTES } });
 
+  app.addHook("onSend", async (_req, reply) => {
+    reply.header("X-Content-Type-Options", "nosniff");
+  });
+
   app.setErrorHandler((error: FastifyError, req, reply) => {
     if (error.code === "FST_ERR_CTP_BODY_TOO_LARGE" && req.url.startsWith("/webhooks")) {
       return reply.code(413).send({ error: "Requisição grande demais." });
     }
 
-    if (error.code === "FST_REQ_FILE_TOO_LARGE" || error.statusCode === 413) {
+    if (error.code === "FST_REQ_FILE_TOO_LARGE") {
       return tooLarge(reply, "A foto passa de 8 MB.");
+    }
+
+    if (error.code === "FST_FILES_LIMIT" || error.code === "FST_FIELDS_LIMIT" || error.code === "FST_PARTS_LIMIT") {
+      return badReq(reply, "Dados do pedido inválidos.");
+    }
+
+    if (error.statusCode === 413) {
+      return tooLarge(reply, "Requisição grande demais.");
     }
 
     if (error.statusCode === 429) {

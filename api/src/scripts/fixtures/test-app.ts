@@ -25,6 +25,7 @@ export async function createTestApp(options: TestAppOptions = {}) {
   const { db, sql } = createDb(process.env.DATABASE_URL ?? "");
   const storage = createMemoryStorage();
   const gateway = createFakeGateway();
+  let offsetMs = 0;
 
   const ctx: OrderContext = {
     db,
@@ -32,7 +33,7 @@ export async function createTestApp(options: TestAppOptions = {}) {
     gateway,
     framesDir: options.framesDir ?? path.resolve("assets/frames"),
     logger: createLogger(options.logStream),
-    now: options.now ?? (() => new Date()),
+    now: options.now ?? (() => new Date(Date.now() + offsetMs)),
   };
 
   await db.delete(orders);
@@ -44,7 +45,7 @@ export async function createTestApp(options: TestAppOptions = {}) {
     webOrigin: "http://localhost:6610",
     trustProxy: options.trustProxy ?? 0,
     ordersPerMinute: options.ordersPerMinute ?? 1000,
-    orderReadsPerMinute: options.orderReadsPerMinute ?? 1000,
+    orderReadsPerMinute: options.orderReadsPerMinute,
     webhookPerMinute: options.webhookPerMinute ?? 1000,
   });
 
@@ -54,6 +55,9 @@ export async function createTestApp(options: TestAppOptions = {}) {
     db,
     storage,
     gateway,
+    advance(ms: number) {
+      offsetMs += ms;
+    },
     async close() {
       await app.close();
       await sql.end();

@@ -15,6 +15,13 @@
       "when": 1791056823645,
       "tag": "0001_amazing_gravity",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791065291306,
+      "tag": "0002_high_celestials",
+      "breakpoints": true
     }
   ]
 }

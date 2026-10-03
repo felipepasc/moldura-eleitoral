@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, test } from "node:test";
 import { Writable } from "node:stream";
 import assert from "node:assert/strict";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import sharp from "sharp";
 import { isPrivateAddress } from "@/core/trust-proxy";
 import { orders } from "@/modules/orders/schema";
@@ -124,6 +124,7 @@ test("GET /orders/:id pendente mostra o Pix; quando a AbacatePay diz PAID monta 
   assert.ok(pending.pix);
 
   t.gateway.statuses.set(t.gateway.created[0], "PAID");
+  t.advance(6000);
 
   const paid = (await t.app.inject({ method: "GET", url: `/orders/${created.id}` })).json();
   assert.equal(paid.status, "paid");
@@ -299,6 +300,7 @@ test("pedido já expirado que depois aparece como PAID vira paid", async () => {
   assert.equal((await t.app.inject({ method: "GET", url: `/orders/${created.id}` })).json().status, "expired");
 
   t.gateway.statuses.set(t.gateway.created[0], "PAID");
+  t.advance(6000);
   const paid = (await t.app.inject({ method: "GET", url: `/orders/${created.id}` })).json();
 
   assert.equal(paid.status, "paid");
@@ -403,51 +405,39 @@ async function postOrderWithForwardedFor(forwardedFor: string, remoteAddress?: s
   return t.app.inject({ method: "POST", url: "/orders", ...body, headers: { ...body.headers, "x-forwarded-for": forwardedFor }, remoteAddress });
 }
 
-test("com trustProxy 0 o X-Forwarded-For forjado não muda o IP gravado", async () => {
-  const res = await postOrderWithForwardedFor("6.6.6.6");
-  const [row] = await t.db.select().from(orders).where(eq(orders.id, res.json().id));
-
-  assert.equal(res.statusCode, 201);
-  assert.notEqual(row.ipAddress, "6.6.6.6");
-  assert.equal(row.ipAddress, "127.0.0.1");
-});
-
-test("com trustProxy 1 vale só o último salto do X-Forwarded-For", async () => {
+test("com trustProxy 0 o X-Forwarded-For forjado não cria outro balde de rate limit", async () => {
   await t.close();
-  t = await createTestApp({ trustProxy: 1 });
+  t = await createTestApp({ ordersPerMinute: 1 });
 
-  const res = await postOrderWithForwardedFor("6.6.6.6, 9.9.9.9");
-
-  assert.equal(res.statusCode, 201);
-
-  const [row] = await t.db.select().from(orders).where(eq(orders.id, res.json().id));
-
-  assert.equal(row.ipAddress, "9.9.9.9");
+  assert.equal((await postOrderWithForwardedFor("6.6.6.6")).statusCode, 201);
+  assert.equal((await postOrderWithForwardedFor("7.7.7.7")).statusCode, 429);
 });
+
 test("com trustProxy 1 e par direto público o X-Forwarded-For é ignorado", async () => {
   await t.close();
-  t = await createTestApp({ trustProxy: 1 });
+  t = await createTestApp({ trustProxy: 1, ordersPerMinute: 1 });
 
-  const res = await postOrderWithForwardedFor("6.6.6.6, 9.9.9.9", "203.0.113.9");
-
-  assert.equal(res.statusCode, 201);
-
-  const [row] = await t.db.select().from(orders).where(eq(orders.id, res.json().id));
-
-  assert.equal(row.ipAddress, "203.0.113.9");
+  assert.equal((await postOrderWithForwardedFor("6.6.6.6, 9.9.9.9", "203.0.113.9")).statusCode, 201);
+  assert.equal((await postOrderWithForwardedFor("5.5.5.5, 8.8.8.8", "203.0.113.9")).statusCode, 429);
 });
 
-test("com trustProxy 1 e par direto privado vale o último salto", async () => {
+test("com trustProxy 1 e par direto privado vale só o último salto", async () => {
   await t.close();
-  t = await createTestApp({ trustProxy: 1 });
+  t = await createTestApp({ trustProxy: 1, ordersPerMinute: 1 });
 
-  const res = await postOrderWithForwardedFor("6.6.6.6, 9.9.9.9", "10.0.0.5");
+  assert.equal((await postOrderWithForwardedFor("6.6.6.6, 9.9.9.9", "10.0.0.5")).statusCode, 201);
+  assert.equal((await postOrderWithForwardedFor("6.6.6.6, 8.8.8.8", "10.0.0.5")).statusCode, 201);
+  assert.equal((await postOrderWithForwardedFor("1.1.1.1, 8.8.8.8", "10.0.0.5")).statusCode, 429);
+});
+
+test("o IP do cliente não é gravado no banco", async () => {
+  const res = await postOrder({ candidateId: "lula", framing: FRAMING }, { data: await photo(), type: "image/jpeg" });
+  const [row] = await t.db.select().from(orders).where(eq(orders.id, res.json().id));
+  const columns = await t.db.execute(sql`select column_name from information_schema.columns where table_name = 'orders'`);
 
   assert.equal(res.statusCode, 201);
-
-  const [row] = await t.db.select().from(orders).where(eq(orders.id, res.json().id));
-
-  assert.equal(row.ipAddress, "9.9.9.9");
+  assert.ok(!("ipAddress" in row));
+  assert.ok(!columns.some((column) => String(column.column_name).includes("ip")));
 });
 
 test("isPrivateAddress reconhece faixas privadas e formas IPv4 mapeadas", () => {

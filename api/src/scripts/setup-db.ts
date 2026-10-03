@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
@@ -23,7 +24,7 @@ async function main() {
   await admin.end();
 
   const sql = postgres(url.toString(), { max: 1 });
-  await migrate(drizzle(sql), { migrationsFolder: "drizzle" });
+  await migrate(drizzle(sql), { migrationsFolder: fileURLToPath(new URL("../../drizzle", import.meta.url)) });
   await sql.end();
 }
 

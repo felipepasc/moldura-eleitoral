@@ -22,7 +22,6 @@ export type CreateOrderInput = {
   candidateId: string;
   framing: Framing;
   photo: Buffer;
-  ipAddress: string;
 };
 
 export async function createOrder(ctx: OrderContext, input: CreateOrderInput): Promise<OrderRow> {
@@ -57,7 +56,6 @@ export async function createOrder(ctx: OrderContext, input: CreateOrderInput): P
         pixId: pix.id,
         pixBrCode: pix.brCode,
         pixBrCodeBase64: pix.brCodeBase64,
-        ipAddress: input.ipAddress,
         expiresAt: pix.expiresAt,
       })
       .returning();

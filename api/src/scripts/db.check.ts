@@ -27,7 +27,6 @@ test("pix_id é único", async () => {
     pixId: "pix_dup",
     pixBrCode: "000",
     pixBrCodeBase64: "QUJD",
-    ipAddress: "127.0.0.1",
     expiresAt: new Date(Date.now() + 60_000),
   };
 
