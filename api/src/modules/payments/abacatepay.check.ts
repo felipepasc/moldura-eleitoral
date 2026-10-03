@@ -93,9 +93,92 @@ test("erro nao vaza chave, cabecalho Authorization nem corpo da resposta", async
   });
 });
 
-test("status desconhecido é rejeitado", async () => {
-  const { fetchFn } = fakeFetch([{ status: 200, json: { data: { status: "WHATEVER" } } }]);
+function rawFetch(status: number, text: string): typeof fetch {
+  return async () => new Response(text, { status });
+}
+
+for (const [raw, expected] of [
+  ["UNDER_DISPUTE", "PENDING"],
+  ["APPROVED", "PENDING"],
+  ["REDEEMED", "PENDING"],
+  ["WHATEVER", "PENDING"],
+  ["FAILED", "CANCELLED"],
+  ["PAID", "PAID"],
+  ["PENDING", "PENDING"],
+  ["EXPIRED", "EXPIRED"],
+  ["CANCELLED", "CANCELLED"],
+  ["REFUNDED", "REFUNDED"],
+] as const) {
+  test(`checkPix mapeia ${raw} para ${expected}`, async () => {
+    const { fetchFn } = fakeFetch([{ status: 200, json: { data: { status: raw } } }]);
+    const gateway = createAbacatePayGateway({ apiKey: "k", baseUrl: "https://x/v2", fetchFn });
+
+    assert.equal(await gateway.checkPix("pix_1"), expected);
+  });
+}
+
+test("checkPix com status ausente ou não-string lança mensagem fixa", async () => {
+  for (const json of [{ data: { id: "a" } }, { data: { status: 42 } }]) {
+    const { fetchFn } = fakeFetch([{ status: 200, json }]);
+    const gateway = createAbacatePayGateway({ apiKey: "k", baseUrl: "https://x/v2", fetchFn });
+
+    await assert.rejects(gateway.checkPix("pix_1"), (error: Error) => error.message === "AbacatePay respondeu formato inválido em /transparents/check");
+  }
+});
+
+test("timeout aborta a requisição sem vazar a chave", async () => {
+  const fetchFn: typeof fetch = (_input, init) =>
+    new Promise((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+    });
+  const gateway = createAbacatePayGateway({ apiKey: "segredo-da-chave", baseUrl: "https://x/v2", fetchFn, timeoutMs: 20 });
+
+  await assert.rejects(gateway.checkPix("pix_1"), (error: Error) => {
+    const text = `${error.message} ${error.stack ?? ""}`;
+
+    return !text.includes("segredo-da-chave") && !text.toLowerCase().includes("authorization") && !text.includes("Bearer");
+  });
+});
+
+test("corpo não-JSON não vaza conteúdo nem chave", async () => {
+  const gateway = createAbacatePayGateway({
+    apiKey: "segredo-da-chave",
+    baseUrl: "https://x/v2",
+    fetchFn: rawFetch(200, "<!DOCTYPE html>secret-marker"),
+  });
+
+  await assert.rejects(gateway.checkPix("pix_1"), (error: Error) => {
+    const text = `${error.message} ${error.stack ?? ""}`;
+
+    return text.includes("corpo inválido") && !text.includes("secret-marker") && !text.includes("segredo-da-chave");
+  });
+});
+
+test("expiresAt inválido é rejeitado", async () => {
+  const { fetchFn } = fakeFetch([
+    { status: 200, json: { data: { id: "p", brCode: "b", brCodeBase64: "c", expiresAt: "lixo" } } },
+  ]);
   const gateway = createAbacatePayGateway({ apiKey: "k", baseUrl: "https://x/v2", fetchFn });
 
-  await assert.rejects(gateway.checkPix("pix_1"));
+  await assert.rejects(gateway.createPix({ amountCents: 1, description: "d", expiresInSeconds: 1 }));
+});
+
+test("barra final do baseUrl é removida", async () => {
+  const { fetchFn, calls } = fakeFetch([{ status: 200, json: { data: { status: "PAID" } } }]);
+  const gateway = createAbacatePayGateway({ apiKey: "k", baseUrl: "https://x/v2/", fetchFn });
+
+  await gateway.checkPix("a");
+
+  assert.equal(calls[0].url, "https://x/v2/transparents/check?id=a");
+});
+
+test("resposta de criação malformada lança mensagem fixa sem ecoar valores", async () => {
+  const { fetchFn } = fakeFetch([{ status: 200, json: { data: { id: 123, brCode: "valor-sensivel-abc" } } }]);
+  const gateway = createAbacatePayGateway({ apiKey: "k", baseUrl: "https://x/v2", fetchFn });
+
+  await assert.rejects(gateway.createPix({ amountCents: 1, description: "d", expiresInSeconds: 1 }), (error: Error) => {
+    const text = `${error.message} ${error.stack ?? ""}`;
+
+    return error.message === "AbacatePay respondeu formato inválido em /transparents/create" && !text.includes("valor-sensivel-abc");
+  });
 });
