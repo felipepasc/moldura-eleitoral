@@ -1,0 +1,59 @@
+import path from "node:path";
+import type { DestinationStream } from "pino";
+import { buildApp } from "@/app";
+import { createDb } from "@/core/db";
+import { createLogger } from "@/core/logger";
+import type { OrderContext } from "@/modules/orders/context";
+import { orders } from "@/modules/orders/schema";
+import { webhookEvents } from "@/modules/payments/schema";
+import { createFakeGateway } from "@/scripts/fixtures/fake-gateway";
+import { createMemoryStorage } from "@/scripts/fixtures/memory-storage";
+
+export const WEBHOOK_SECRET = "test-webhook-secret-123456";
+
+export type TestAppOptions = {
+  now?: () => Date;
+  ordersPerMinute?: number;
+  framesDir?: string;
+  logStream?: DestinationStream;
+};
+
+export async function createTestApp(options: TestAppOptions = {}) {
+  const { db, sql } = createDb(process.env.DATABASE_URL ?? "");
+  const storage = createMemoryStorage();
+  const gateway = createFakeGateway();
+
+  const ctx: OrderContext = {
+    db,
+    storage,
+    gateway,
+    framesDir: options.framesDir ?? path.resolve("assets/frames"),
+    logger: createLogger(options.logStream),
+    now: options.now ?? (() => new Date()),
+  };
+
+  await db.delete(orders);
+  await db.delete(webhookEvents);
+
+  const app = await buildApp({
+    ctx,
+    webhookSecret: WEBHOOK_SECRET,
+    webOrigin: "http://localhost:6610",
+    trustProxy: false,
+    ordersPerMinute: options.ordersPerMinute ?? 1000,
+  });
+
+  return {
+    app,
+    ctx,
+    db,
+    storage,
+    gateway,
+    async close() {
+      await app.close();
+      await sql.end();
+    },
+  };
+}
+
+export type TestApp = Awaited<ReturnType<typeof createTestApp>>;

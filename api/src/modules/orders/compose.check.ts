@@ -56,3 +56,23 @@ test("normalizePhoto limita o lado maior a 2000 px", async () => {
   assert.equal(meta.width, 2000);
   assert.equal(meta.height, 1500);
 });
+
+test("normalizePhoto rejeita SVG, GIF e TIFF mesmo que decodificáveis", async () => {
+  const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10" fill="red"/></svg>');
+  const gif = await sharp({ create: { width: 10, height: 10, channels: 3, background: { r: 1, g: 2, b: 3 } } }).gif().toBuffer();
+  const tiff = await sharp({ create: { width: 10, height: 10, channels: 3, background: { r: 1, g: 2, b: 3 } } }).tiff().toBuffer();
+
+  await assert.rejects(normalizePhoto(svg), InvalidPhotoError);
+  await assert.rejects(normalizePhoto(gif), InvalidPhotoError);
+  await assert.rejects(normalizePhoto(tiff), InvalidPhotoError);
+});
+
+test("normalizePhoto aceita jpeg, png e webp", async () => {
+  const base = { create: { width: 20, height: 20, channels: 3 as const, background: { r: 1, g: 2, b: 3 } } };
+
+  for (const buffer of [await sharp(base).jpeg().toBuffer(), await sharp(base).png().toBuffer(), await sharp(base).webp().toBuffer()]) {
+    const out = await normalizePhoto(buffer);
+
+    assert.equal((await sharp(out).metadata()).format, "jpeg");
+  }
+});
