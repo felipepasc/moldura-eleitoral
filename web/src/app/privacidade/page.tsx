@@ -6,14 +6,15 @@ import { PageHeader } from "@/components/PageHeader";
 export const metadata: Metadata = { title: "Privacidade | Moldura Eleitoral" };
 
 const RETENTION: { item: string; how: string }[] = [
-  { item: "Sua foto (pedido não pago)", how: "Normalmente apagada 24 h depois do pedido; no máximo em 4 dias." },
-  { item: "Sua foto (pedido pago)", how: "Apagada logo que a foto pronta é montada (no máximo em 4 dias, se algo falhar)." },
-  { item: "Foto pronta (com a moldura, sem marca d'água)", how: "Disponível para baixar por 7 dias e depois apagada (no máximo em 8 dias)." },
-  { item: "Registro do pedido pago", how: "Apagado depois de 7 dias." },
-  { item: "Registro do pedido pago em que a foto não pôde ser montada", how: "Apagado em até 5 dias." },
-  { item: "Registro do pedido não pago ou expirado", how: "Normalmente apagado 24 h depois do pedido; no máximo em 3 dias." },
-  { item: "Avisos de pagamento recebidos da AbacatePay", how: "Apagados depois de 30 dias." },
-  { item: "Lista “Minhas molduras” (no seu navegador)", how: "Cada item some sozinho depois de 7 dias; você pode apagar antes." },
+  { item: "Sua foto (pedido não pago)", how: "Até 4 dias (normalmente apagada 24 h depois do pedido)." },
+  { item: "Sua foto (pedido pago)", how: "Até 4 dias (normalmente apagada logo que a foto pronta é montada)." },
+  { item: "Foto pronta (com a moldura, sem marca d'água)", how: "Até 8 dias (fica disponível para baixar por 7 dias)." },
+  { item: "Registro do pedido pago", how: "Até 7 dias depois do pagamento." },
+  { item: "Registro do pedido pago em que a foto não pôde ser montada", how: "Até 5 dias." },
+  { item: "Registro do pedido não pago ou expirado", how: "Até 3 dias (normalmente apagado 24 h depois do pedido)." },
+  { item: "Avisos de pagamento recebidos da AbacatePay", how: "Até 30 dias." },
+  { item: "Registros técnicos (logs) do site e da hospedagem", how: "Por período limitado, definido pelo operador." },
+  { item: "Lista “Minhas molduras” (no seu navegador)", how: "Até 7 dias (cada item some sozinho; você pode apagar antes)." },
 ];
 
 export default function PrivacyPage() {
@@ -53,7 +54,16 @@ export default function PrivacyPage() {
               Nós não pedimos nem guardamos seu nome ou CPF; quem paga é identificado pelo banco e pela AbacatePay, como em qualquer Pix.
             </dd>
             <dt>Endereço IP</dt>
-            <dd>Não é guardado. É usado apenas na memória do servidor, por pouco tempo, para limitar pedidos abusivos.</dd>
+            <dd>
+              O site não guarda o seu endereço IP no banco de dados, e os registros (logs) da própria aplicação não o anotam: ele é usado apenas na memória do servidor,
+              por pouco tempo, para limitar pedidos abusivos. Os servidores, o provedor de hospedagem e o proxy por onde o site é entregue podem manter registros de acesso
+              comuns, que podem incluir endereços IP, por um período curto definido pelo operador, para segurança e estabilidade.
+            </dd>
+            <dt>Registros técnicos da aplicação</dt>
+            <dd>
+              Os logs da aplicação guardam só uma referência interna ao pedido (não o número do pedido) e, em casos raros de falha envolvendo pagamento, o identificador
+              da cobrança na AbacatePay, para que um reembolso possa ser rastreado. Eles ficam guardados por período limitado e definido pelo operador.
+            </dd>
             <dt>Lista “Minhas molduras” (no seu navegador)</dt>
             <dd>
               Depois do pagamento, o seu navegador guarda (localStorage, só neste aparelho) o número do pedido, a moldura escolhida e a data, por 7 dias, para você
@@ -65,12 +75,16 @@ export default function PrivacyPage() {
 
         <section aria-labelledby="retencao">
           <h2 id="retencao">Por quanto tempo guardamos</h2>
+          <p>
+            Os prazos abaixo são máximos. O armazenamento aplica a expiração uma vez por dia, então a exclusão pode levar cerca de um dia a mais do que o prazo
+            indicado.
+          </p>
           <div className="table-scroll">
             <table className="legal-table">
               <thead>
                 <tr>
                   <th scope="col">Dado</th>
-                  <th scope="col">Quando é apagado</th>
+                  <th scope="col">Prazo máximo</th>
                 </tr>
               </thead>
               <tbody>
