@@ -1,0 +1,26 @@
+{
+  "name": "@moldura/web",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "predev": "node scripts/sync-frames.mjs",
+    "dev": "next dev -p 6610",
+    "prebuild": "node scripts/sync-frames.mjs",
+    "build": "next build",
+    "start": "next start -p 6610",
+    "typecheck": "tsc --noEmit",
+    "test": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@moldura/common": "workspace:*",
+    "next": "^16.3.8",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "typescript": "^7.0.2"
+  }
+}
