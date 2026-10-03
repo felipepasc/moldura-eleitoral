@@ -30,6 +30,15 @@ Os arquivos públicos `/frames/<id>.png` (servidos pelo web) são as molduras **
 - Estados: `common/src/states.ts` (27 UFs). Governadores ainda não existem: para acrescentar, crie entradas em `candidates.ts` com `office: "governador"` e `state` (use `candidatesBy("governador", "SP")` para filtrar), gere a moldura com `pnpm frames:build` e rode `pnpm test`.
 - Só dados públicos (nomes, números, partidos, cores): nada de e-mail, telefone, CPF ou endereço.
 
+## Página inicial e ilustrações de IA
+
+- A home (`web/src/app/page.tsx` + `web/src/components/home/`) é toda animada só com CSS (`@keyframes` de `transform`/`opacity`) e um `Reveal` com `IntersectionObserver`; sem biblioteca de animação, sem fontes, imagens ou scripts externos (o CSP não mudou). Com `prefers-reduced-motion: reduce` tudo fica parado no estado final e o avatar do topo não troca.
+- Ilustrações: `web/public/art/<id>.webp` (640×640), **estilizadas e geradas por IA** — não são fotos nem material oficial. Só entram as aprovadas; ao aprovar uma nova, copie o arquivo e acrescente o id em `ART_IDS` (`web/src/lib/art.ts`). Sem ilustração, o cartão mostra uma silhueta genérica com a moldura por cima.
+- Toda ilustração mostra o selo `AiBadge` ("IA", `aria-label` "Ilustração gerada por IA") no canto superior direito, e o aviso "Ilustrações geradas por IA, estilizadas — não são fotos nem material oficial das campanhas." aparece perto do topo da home e no rodapé. O selo é só para a arte do site: nunca vai sobre a foto do usuário.
+- Exemplos com abas Presidente | Governador; em Governador há o seletor de estado (27 UFs) e "Governadores: em breve" até existirem candidatos (o filtro já usa `candidatesBy`). Em `/criar` o seletor de moldura agrupa por cargo (`<optgroup>`) e o de estado fica desabilitado.
+- Faixa de partidos: sigla, número e cor (sem logotipos); quando a cor do partido não dá contraste AA com o texto, ela é escurecida só o necessário (`swatch` em `web/src/lib/art.ts`).
+- Teste dos helpers: de dentro de `web/`, `../api/node_modules/.bin/tsx --test src/lib/*.check.ts`.
+
 ### Fonte das molduras
 
 O texto das molduras usa a Montserrat ExtraBold (subconjunto latin, `api/assets/fonts/montserrat-latin-800-normal.woff`, extraída do pacote npm `@fontsource/montserrat`, que não é dependência do projeto), licenciada sob a SIL Open Font License 1.1; o texto da licença está em `api/assets/fonts/Montserrat-OFL.txt`. O `opentype.js` (devDependency da api) converte os glifos em caminhos SVG.

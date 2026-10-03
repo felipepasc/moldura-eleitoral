@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent, PointerEvent } from "react";
 import { useRouter } from "next/navigation";
-import { CANDIDATES, FRAME_SIZE, MAX_ZOOM, PHOTO_MAX_BYTES, PHOTO_MIME_TYPES, PRICE_CENTS } from "@moldura/common";
-import type { Framing } from "@moldura/common";
+import { CANDIDATES, FRAME_SIZE, MAX_ZOOM, PHOTO_MAX_BYTES, PHOTO_MIME_TYPES, PRICE_CENTS, candidatesBy } from "@moldura/common";
+import type { Framing, Office } from "@moldura/common";
 import { createOrder, messageOf } from "@/lib/api";
 import { drawPreview } from "@/lib/preview";
 
@@ -12,6 +12,11 @@ const KEY_STEP = 0.02;
 const FRAME_ERROR = "Não foi possível carregar a moldura.";
 const clamp = (value: number) => Math.min(1, Math.max(-1, value));
 const price = (PRICE_CENTS / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+const OFFICES: { office: Office; label: string }[] = [
+  { office: "presidente", label: "Presidente" },
+  { office: "governador", label: "Governador" },
+];
 
 type LoadedFrame = { id: string; image: HTMLImageElement };
 
@@ -211,12 +216,30 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
 
         <label htmlFor="candidate">2. Moldura</label>
         <select id="candidate" value={candidateId} onChange={(event) => setCandidateId(event.target.value)}>
-          {CANDIDATES.map((candidate) => (
-            <option key={candidate.id} value={candidate.id}>
-              {candidate.name} • {candidate.number}
-            </option>
-          ))}
+          {OFFICES.map((office) => {
+            const group = candidatesBy(office.office);
+
+            if (group.length === 0) {
+              return null;
+            }
+
+            return (
+              <optgroup key={office.office} label={office.label}>
+                {group.map((candidate) => (
+                  <option key={candidate.id} value={candidate.id}>
+                    {candidate.name} • {candidate.number}
+                  </option>
+                ))}
+              </optgroup>
+            );
+          })}
         </select>
+
+        <label htmlFor="governor-state">Estado (governador)</label>
+        <select id="governor-state" disabled defaultValue="" aria-describedby="governor-soon">
+          <option value="">Governadores: em breve</option>
+        </select>
+        <p id="governor-soon" className="hint">Por enquanto, só as molduras de presidente.</p>
 
         <label htmlFor="zoom">3. Ajuste (arraste a foto e use o zoom)</label>
         <input
