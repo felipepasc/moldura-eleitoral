@@ -1,0 +1,34 @@
+{
+  "name": "@moldura/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file=.env src/main.ts",
+    "start": "tsx --env-file=.env src/main.ts",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:setup": "tsx --env-file=.env src/scripts/setup-db.ts",
+    "frames:placeholder": "tsx src/scripts/make-placeholder-frames.ts",
+    "test": "tsx --env-file=.env.test src/scripts/setup-db.ts && tsx --env-file=.env.test --test --test-concurrency=1 \"src/**/*.check.ts\""
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.3.0",
+    "@fastify/multipart": "^10.1.2",
+    "@fastify/rate-limit": "^11.2.0",
+    "@moldura/common": "workspace:*",
+    "drizzle-orm": "^0.45.3",
+    "fastify": "^5.12.5",
+    "minio": "^8.0.7",
+    "pino": "^10.4.0",
+    "postgres": "^3.4.9",
+    "sharp": "^0.35.5",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "drizzle-kit": "^0.31.11",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}
