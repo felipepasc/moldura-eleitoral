@@ -29,6 +29,30 @@ test("a fonte cobre todos os caracteres de frameName e número", () => {
   }
 });
 
+test("buildFrameSvg falha com erro claro quando a fonte não cobre um caractere", () => {
+  const broken = { ...CANDIDATES[0], frameName: "LULA 漢" };
+
+  assert.throws(() => buildFrameSvg(broken), /glifo/);
+});
+
+test("a moldura tem contorno escuro fino na borda externa, mesmo com faixa externa branca", async () => {
+  const lula = CANDIDATES.find((candidate) => candidate.id === "lula");
+
+  assert.ok(lula);
+
+  const png = await renderPlaceholderFrame(lula);
+  const { data, info } = await (await import("sharp")).default(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const pixel = (x: number, y: number) => {
+    const index = (y * info.width + x) * 4;
+
+    return { r: data[index], g: data[index + 1], b: data[index + 2], a: data[index + 3] };
+  };
+  const edge = pixel(540, 1);
+
+  assert.equal(edge.a, 255);
+  assert.ok(edge.r + edge.g + edge.b < 400, "borda externa precisa ser escura");
+});
+
 test("o validador acusa moldura com disco central parcialmente opaco", async () => {
   const sharp = (await import("sharp")).default;
   const png = await renderPlaceholderFrame(CANDIDATES[0]);

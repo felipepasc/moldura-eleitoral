@@ -91,7 +91,7 @@ test("todo candidato tem partido existente e cores válidas derivadas do partido
 });
 
 test("partidos: siglas e números únicos, hex válidos e contraste mínimo entre as três cores", () => {
-  assert.ok(PARTIES.length >= 28);
+  assert.equal(PARTIES.length, 29);
   assert.equal(new Set(PARTIES.map((party) => party.acronym)).size, PARTIES.length);
   assert.equal(new Set(PARTIES.map((party) => party.number)).size, PARTIES.length);
 

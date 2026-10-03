@@ -27,7 +27,6 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@fontsource/montserrat": "^5.3.0",
     "@types/node": "^26.6.4",
     "drizzle-kit": "^0.31.11",
     "opentype.js": "^2.0.0",

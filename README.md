@@ -32,7 +32,7 @@ Os arquivos públicos `/frames/<id>.png` (servidos pelo web) são as molduras **
 
 ### Fonte das molduras
 
-O texto das molduras usa a Montserrat ExtraBold (subconjunto latin, `api/assets/fonts/montserrat-latin-800-normal.woff`, obtida do pacote npm `@fontsource/montserrat`), licenciada sob a SIL Open Font License 1.1; o texto da licença está em `api/assets/fonts/Montserrat-OFL.txt`. O `opentype.js` (devDependency da api) converte os glifos em caminhos SVG.
+O texto das molduras usa a Montserrat ExtraBold (subconjunto latin, `api/assets/fonts/montserrat-latin-800-normal.woff`, extraída do pacote npm `@fontsource/montserrat`, que não é dependência do projeto), licenciada sob a SIL Open Font License 1.1; o texto da licença está em `api/assets/fonts/Montserrat-OFL.txt`. O `opentype.js` (devDependency da api) converte os glifos em caminhos SVG.
 
 ## AbacatePay
 

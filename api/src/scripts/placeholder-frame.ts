@@ -8,7 +8,10 @@ import type { Candidate } from "@moldura/common";
 
 const FONT_URL = new URL("../../assets/fonts/montserrat-latin-800-normal.woff", import.meta.url);
 const MAX_ARC_DEGREES = 100;
-const LETTER_SPACING = 0.05;
+const LETTER_SPACING = 0.09;
+const ACCENT_HEIGHT = 0.95;
+const GLYPH_TOP_LIMIT = 524;
+const OUTLINE_WIDTH = 3;
 const CAP_HEIGHT = 0.7;
 
 let cachedFont: Font | undefined;
@@ -50,14 +53,22 @@ function bestTextColor(background: string, options: string[]): string {
   return [...options].sort((first, second) => contrast(second, background) - contrast(first, background))[0];
 }
 
+function darken(hex: string, amount: number): string {
+  const channels = [1, 3, 5].map((index) => Math.round(Number.parseInt(hex.slice(index, index + 2), 16) * (1 - amount)));
+
+  return `#${channels.map((value) => value.toString(16).padStart(2, "0")).join("")}`;
+}
+
 function round(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
 // Texto em arco, glifo a glifo, como caminhos SVG (sem <text>): independe de fontes do sistema.
 // Centrado no topo do anel; encolhe para caber em MAX_ARC_DEGREES sem cortar.
-function arcText(text: string, center: number, radius: number, maxFontSize: number, fill: string): string {
+function arcText(text: string, center: number, radius: number, requestedFontSize: number, fill: string): string {
   const font = loadFont();
+  const topFactor = /[^A-Z0-9 ]/.test(text) ? ACCENT_HEIGHT - CAP_HEIGHT / 2 : CAP_HEIGHT / 2;
+  const maxFontSize = Math.min(requestedFontSize, (GLYPH_TOP_LIMIT - radius) / topFactor);
   const characters = [...text];
   const maxArc = (MAX_ARC_DEGREES * Math.PI * radius) / 180;
   const widthAt = (fontSize: number) => characters.reduce((sum, character) => sum + font.getAdvanceWidth(character, fontSize) + fontSize * LETTER_SPACING, 0);
@@ -95,6 +106,12 @@ function centeredText(text: string, x: number, y: number, fontSize: number, fill
 }
 
 export function buildFrameSvg(candidate: Candidate): string {
+  const missing = missingGlyphs(candidate.frameName + candidate.number);
+
+  if (missing.length > 0) {
+    throw new Error(`A fonte da moldura não tem glifo para: ${missing.join(" ")} (${candidate.id})`);
+  }
+
   const size = FRAME_SIZE;
   const center = size / 2;
   const ring = size * FRAME_RING_RATIO;
@@ -102,7 +119,8 @@ export function buildFrameSvg(candidate: Candidate): string {
   const middle = inner + ring / 2;
   const [main, second, third] = candidate.colors;
   const band = ring * 0.08;
-  const badgeRadius = ring * 0.46;
+  const badgeRadius = ring * 0.38;
+  const outline = darken(main, 0.5);
   const badgeY = center + middle;
   const nameColor = bestTextColor(main, [second, third, "#ffffff", "#000000"]);
   const badgeFill = bestTextColor(main, [second, third]);
@@ -112,7 +130,8 @@ export function buildFrameSvg(candidate: Candidate): string {
     <circle cx="${center}" cy="${center}" r="${middle}" fill="none" stroke="${main}" stroke-width="${ring}"/>
     <circle cx="${center}" cy="${center}" r="${center - band / 2}" fill="none" stroke="${second}" stroke-width="${band}"/>
     <circle cx="${center}" cy="${center}" r="${inner + band / 2}" fill="none" stroke="${third}" stroke-width="${band}"/>
-    ${arcText(candidate.frameName, center, middle, ring * 0.78, nameColor)}
+    <circle cx="${center}" cy="${center}" r="${center - OUTLINE_WIDTH / 2}" fill="none" stroke="${outline}" stroke-width="${OUTLINE_WIDTH}"/>
+    ${arcText(candidate.frameName, center, middle, ring * 0.55, nameColor)}
     <circle cx="${center}" cy="${badgeY}" r="${badgeRadius}" fill="${badgeFill}" stroke="${main}" stroke-width="${size * 0.006}"/>
     ${centeredText(candidate.number, center, badgeY, badgeRadius * 0.95, numberColor)}
   </svg>`;
