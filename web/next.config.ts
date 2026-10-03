@@ -1,19 +1,12 @@
 import type { NextConfig } from "next";
+import { DEFAULT_API_ORIGIN, DEFAULT_IMAGES_ORIGIN, normalizeOrigin } from "./src/lib/origin";
 
 const isDev = process.env.NODE_ENV === "development";
 
-function originOf(value: string): string {
-  try {
-    return new URL(value).origin;
-  } catch {
-    return "";
-  }
-}
+const apiOrigin = normalizeOrigin(process.env.NEXT_PUBLIC_API_URL, DEFAULT_API_ORIGIN);
+const imagesOrigin = normalizeOrigin(process.env.NEXT_PUBLIC_IMAGES_ORIGIN, DEFAULT_IMAGES_ORIGIN);
 
-const apiOrigin = originOf(process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:6600");
-const imagesOrigin = originOf(process.env.NEXT_PUBLIC_IMAGES_ORIGIN ?? "http://localhost:9300");
-
-if (!imagesOrigin.startsWith("http://") && !imagesOrigin.startsWith("https://")) {
+if (!imagesOrigin) {
   console.warn("Aviso: NEXT_PUBLIC_IMAGES_ORIGIN ausente ou inválida; imagens do MinIO ficarão bloqueadas pelo CSP.");
 }
 

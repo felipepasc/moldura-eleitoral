@@ -5,16 +5,19 @@ import Link from "next/link";
 import { findCandidate } from "@moldura/common";
 import { getOrder, statusOf } from "@/lib/api";
 import { SHARED_DEVICE_WARNING, browserStorage, clearSavedOrders, loadSavedOrders, removeSavedOrder } from "@/lib/my-orders";
-import { safeDownloadUrl } from "@/lib/download-url";
+import { decideDownload } from "@/lib/download-url";
+import { DEFAULT_IMAGES_ORIGIN, normalizeOrigin } from "@/lib/origin";
 import type { SavedOrder } from "@/lib/my-orders";
 
-type Item = { saved: SavedOrder; downloadUrl: string | null; failed: boolean };
+type ItemState = "loading" | "ready" | "failed" | "unavailable" | "stale";
+type Item = { saved: SavedOrder; downloadUrl: string | null; state: ItemState };
 
-const NOTICE = `Esta lista fica só neste aparelho por 7 dias. Em computador compartilhado, apague ao terminar. ${SHARED_DEVICE_WARNING}`;
+const NOTICE = `Esta lista fica só neste aparelho por 7 dias. ${SHARED_DEVICE_WARNING}`;
 const EXPIRY_HINT = "Os links de download valem por poucos minutos; recarregue esta página para gerar outros.";
 const RATE_LIMIT_MESSAGE = "Muitas consultas seguidas. Aguarde um minuto e recarregue a página.";
 const LOAD_FAILED_MESSAGE = "Não foi possível carregar algumas molduras agora. Tente de novo mais tarde.";
-const IMAGES_ORIGIN = process.env.NEXT_PUBLIC_IMAGES_ORIGIN || "http://localhost:9300";
+const IMAGES_ORIGIN = normalizeOrigin(process.env.NEXT_PUBLIC_IMAGES_ORIGIN, DEFAULT_IMAGES_ORIGIN);
+const STALE_MESSAGE = "Não foi possível atualizar agora; tente novamente em instantes.";
 
 export function MyOrders() {
   const [items, setItems] = useState<Item[] | null>(null);
@@ -31,7 +34,7 @@ export function MyOrders() {
       const storage = browserStorage();
       const saved = loadSavedOrders(storage, Date.now());
 
-      setItems(saved.map((entry) => ({ saved: entry, downloadUrl: null, failed: false })));
+      setItems(saved.map((entry) => ({ saved: entry, downloadUrl: null, state: "loading" as const })));
 
       // Um pedido por vez: a api limita as leituras por minuto.
       for (const entry of saved) {
@@ -46,11 +49,15 @@ export function MyOrders() {
             return;
           }
 
-          const downloadUrl = order.status === "paid" && order.downloadUrl ? safeDownloadUrl(order.downloadUrl, IMAGES_ORIGIN) : null;
+          const decision = decideDownload(order.status, order.downloadUrl, IMAGES_ORIGIN);
 
-          if (downloadUrl) {
+          if (decision.kind === "ok") {
+            const downloadUrl = decision.url;
 
-            setItems((current) => current?.map((item) => (item.saved.id === entry.id ? { ...item, downloadUrl } : item)) ?? current);
+            setItems((current) => current?.map((item) => (item.saved.id === entry.id ? { ...item, downloadUrl, state: "ready" as const } : item)) ?? current);
+          } else if (decision.kind === "unavailable") {
+            // Link inutilizável: só avisa; nunca apaga a entrada por causa disso.
+            setItems((current) => current?.map((item) => (item.saved.id === entry.id ? { ...item, state: "unavailable" as const } : item)) ?? current);
           } else {
             removeSavedOrder(storage, entry.id, Date.now());
             setItems((current) => current?.filter((item) => item.saved.id !== entry.id) ?? current);
@@ -62,6 +69,7 @@ export function MyOrders() {
 
           if (statusOf(caught) === 429) {
             setRateLimited(true);
+            setItems((current) => current?.map((item) => (item.state === "loading" ? { ...item, state: "stale" as const } : item)) ?? current);
 
             return;
           }
@@ -70,7 +78,7 @@ export function MyOrders() {
             removeSavedOrder(storage, entry.id, Date.now());
             setItems((current) => current?.filter((item) => item.saved.id !== entry.id) ?? current);
           } else {
-            setItems((current) => current?.map((item) => (item.saved.id === entry.id ? { ...item, failed: true } : item)) ?? current);
+            setItems((current) => current?.map((item) => (item.saved.id === entry.id ? { ...item, state: "failed" as const } : item)) ?? current);
           }
         }
       }
@@ -92,6 +100,7 @@ export function MyOrders() {
     stopped.current = true;
     clearSavedOrders(browserStorage());
     setItems([]);
+    setRateLimited(false);
     setConfirmAll(false);
   }
 
@@ -99,7 +108,7 @@ export function MyOrders() {
     return <p aria-live="polite">Carregando...</p>;
   }
 
-  const someFailed = items.some((item) => item.failed);
+  const someFailed = items.some((item) => item.state === "failed");
 
   return (
     <div aria-live="polite">
@@ -147,8 +156,10 @@ function MyOrderCard({ item, onRemove }: { item: Item; onRemove: (id: string) =>
       ) : null}
       <b>{name}</b>
       <small>Salva em {date}</small>
-      {item.failed ? <p className="hint">Não foi possível carregar.</p> : null}
-      {!item.downloadUrl && !item.failed ? <p className="hint">Carregando...</p> : null}
+      {item.state === "failed" ? <p className="hint">Não foi possível carregar.</p> : null}
+      {item.state === "unavailable" ? <p className="hint">Indisponível neste momento.</p> : null}
+      {item.state === "stale" ? <p className="hint">{STALE_MESSAGE}</p> : null}
+      {item.state === "loading" ? <p className="hint">Carregando...</p> : null}
       <div className="row" style={{ justifyContent: "center", marginTop: 8 }}>
         {item.downloadUrl ? <a className="btn" href={item.downloadUrl} rel="noreferrer noopener">Baixar</a> : null}
         {confirming ? (
