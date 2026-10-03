@@ -6,6 +6,13 @@ import type { Font } from "opentype.js";
 import { FRAME_RING_RATIO, FRAME_SIZE, innerRadius } from "@moldura/common";
 import type { Candidate } from "@moldura/common";
 
+// O que o desenho da moldura precisa: um candidato serve; a moldura neutra (sem número) também.
+export type FrameSpec = Pick<Candidate, "id" | "frameName" | "colors"> & { number?: string };
+
+// Moldura de exemplo da home: não é candidato (não está em CANDIDATES, não vai para /criar nem para pedidos).
+// Cores inspiradas na bandeira (verde, amarelo, azul), diferentes das de qualquer partido; sem selo de número.
+export const NEUTRAL_FRAME: FrameSpec = { id: "neutral", frameName: "SUA FOTO AQUI", colors: ["#00843d", "#ffdf00", "#002776"] };
+
 const FONT_URL = new URL("../../assets/fonts/montserrat-latin-800-normal.woff", import.meta.url);
 const MAX_ARC_DEGREES = 100;
 const LETTER_SPACING = 0.09;
@@ -105,8 +112,8 @@ function centeredText(text: string, x: number, y: number, fontSize: number, fill
   return `<path d="${data}" fill="${fill}"/>`;
 }
 
-export function buildFrameSvg(candidate: Candidate): string {
-  const missing = missingGlyphs(candidate.frameName + candidate.number);
+export function buildFrameSvg(candidate: FrameSpec): string {
+  const missing = missingGlyphs(candidate.frameName + (candidate.number ?? ""));
 
   if (missing.length > 0) {
     throw new Error(`A fonte da moldura não tem glifo para: ${missing.join(" ")} (${candidate.id})`);
@@ -125,6 +132,8 @@ export function buildFrameSvg(candidate: Candidate): string {
   const nameColor = bestTextColor(main, [second, third, "#ffffff", "#000000"]);
   const badgeFill = bestTextColor(main, [second, third]);
   const numberColor = bestTextColor(badgeFill, [main, "#ffffff", "#000000"]);
+  const badge = (number: string) =>
+    `<circle cx="${center}" cy="${badgeY}" r="${badgeRadius}" fill="${badgeFill}" stroke="${main}" stroke-width="${size * 0.006}"/>${centeredText(number, center, badgeY, badgeRadius * 0.95, numberColor)}`;
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">
     <circle cx="${center}" cy="${center}" r="${middle}" fill="none" stroke="${main}" stroke-width="${ring}"/>
@@ -132,12 +141,11 @@ export function buildFrameSvg(candidate: Candidate): string {
     <circle cx="${center}" cy="${center}" r="${inner + band / 2}" fill="none" stroke="${third}" stroke-width="${band}"/>
     <circle cx="${center}" cy="${center}" r="${center - OUTLINE_WIDTH / 2}" fill="none" stroke="${outline}" stroke-width="${OUTLINE_WIDTH}"/>
     ${arcText(candidate.frameName, center, middle, ring * 0.55, nameColor)}
-    <circle cx="${center}" cy="${badgeY}" r="${badgeRadius}" fill="${badgeFill}" stroke="${main}" stroke-width="${size * 0.006}"/>
-    ${centeredText(candidate.number, center, badgeY, badgeRadius * 0.95, numberColor)}
+    ${candidate.number === undefined ? "" : badge(candidate.number)}
   </svg>`;
 }
 
-export async function renderPlaceholderFrame(candidate: Candidate): Promise<Buffer> {
+export async function renderPlaceholderFrame(candidate: FrameSpec): Promise<Buffer> {
   return sharp(Buffer.from(buildFrameSvg(candidate))).png().toBuffer();
 }
 

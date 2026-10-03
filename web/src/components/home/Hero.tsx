@@ -5,17 +5,58 @@ import Link from "next/link";
 import { CANDIDATES, PRICE_CENTS } from "@moldura/common";
 import { AiBadge } from "@/components/AiBadge";
 import { FramedPortrait } from "@/components/home/FramedPortrait";
-import { AI_NOTE, withArt } from "@/lib/art";
+import { AI_NOTE, hasArt } from "@/lib/art";
+import { NEUTRAL_FRAME_ID, NEUTRAL_SLIDE, buildHeroSlides } from "@/lib/hero-slides";
+import type { HeroSlide } from "@/lib/hero-slides";
 
 const CYCLE_MS = 3500;
 const price = (PRICE_CENTS / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-const featured = withArt(CANDIDATES);
+
+function slideHasArt(slide: HeroSlide): boolean {
+  return slide.kind === "candidate" && hasArt(slide.candidate.id);
+}
+
+// Só o slide atual, o anterior (saindo no crossfade) e o próximo (pré-carregado) ficam montados.
+function isNear(index: number, active: number, total: number): boolean {
+  return index === active || index === (active + 1) % total || index === (active - 1 + total) % total;
+}
+
+function SlidePortrait({ slide, decorative, badge }: { slide: HeroSlide; decorative: boolean; badge: "none" }) {
+  if (slide.kind === "neutral") {
+    return <FramedPortrait id={NEUTRAL_FRAME_ID} name="Sua foto aqui" badge={badge} decorative={decorative} eager frameAlt="Moldura de exemplo: sua foto aqui" />;
+  }
+
+  return <FramedPortrait id={slide.candidate.id} name={slide.candidate.name} badge={badge} decorative={decorative} eager />;
+}
+
+function SlideLayers({ slides, active, decorative }: { slides: HeroSlide[]; active: number; decorative: boolean }) {
+  return (
+    <>
+      {slides.map((slide, index) => {
+        if (!isNear(index, active, slides.length)) {
+          return null;
+        }
+
+        const current = index === active;
+
+        return (
+          <div key={slide.key} className={`hero-layer${current ? " is-active" : ""}`} aria-hidden={current && !decorative ? undefined : true}>
+            <SlidePortrait slide={slide} decorative={decorative || !current} badge="none" />
+          </div>
+        );
+      })}
+    </>
+  );
+}
 
 export function Hero() {
+  // SSR e primeira pintura: só o slide neutro (sem favorecer ninguém e sem diferença de hidratação).
+  const [slides, setSlides] = useState<HeroSlide[]>([NEUTRAL_SLIDE]);
   const [active, setActive] = useState(0);
 
   useEffect(() => {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const built = buildHeroSlides(CANDIDATES);
     let timer: number | undefined;
 
     function stop() {
@@ -28,13 +69,20 @@ export function Hero() {
     function sync() {
       stop();
 
-      if (!reduced.matches && !document.hidden && featured.length > 1) {
+      if (reduced.matches) {
+        setActive(0);
+
+        return;
+      }
+
+      if (!document.hidden && built.length > 1) {
         timer = window.setInterval(() => {
-          setActive((current) => (current + 1) % featured.length);
+          setActive((current) => (current + 1) % built.length);
         }, CYCLE_MS);
       }
     }
 
+    setSlides(built);
     sync();
     reduced.addEventListener("change", sync);
     document.addEventListener("visibilitychange", sync);
@@ -45,6 +93,8 @@ export function Hero() {
       document.removeEventListener("visibilitychange", sync);
     };
   }, []);
+
+  const showBadge = slideHasArt(slides[active] ?? NEUTRAL_SLIDE);
 
   return (
     <section className="hero" aria-labelledby="hero-title">
@@ -86,13 +136,11 @@ export function Hero() {
           <div className="hero-avatar">
             <div className="hero-ring" aria-hidden="true" />
             <div className="hero-layers">
-              {featured.map((candidate, index) => (
-                <div key={candidate.id} className={`hero-layer${index === active ? " is-active" : ""}`} aria-hidden={index === active ? undefined : true}>
-                  <FramedPortrait id={candidate.id} name={candidate.name} badge="none" decorative={index !== active} eager={index < 2} />
-                </div>
-              ))}
+              <SlideLayers slides={slides} active={active} decorative={false} />
             </div>
-            {featured.length > 0 ? <AiBadge size="lg" /> : null}
+            <span className={`badge-slot${showBadge ? " is-on" : ""}`} aria-hidden={showBadge ? undefined : true}>
+              <AiBadge size="lg" />
+            </span>
           </div>
 
           <p className="hand-note" aria-hidden="true">
@@ -107,12 +155,10 @@ export function Hero() {
             <div className="phone-screen">
               <span className="phone-notch" />
               <div className="phone-avatar">
-                {featured.map((candidate, index) => (
-                  <div key={candidate.id} className={`hero-layer${index === active ? " is-active" : ""}`}>
-                    <FramedPortrait id={candidate.id} name={candidate.name} badge="none" decorative eager={index < 2} />
-                  </div>
-                ))}
-                {featured.length > 0 ? <AiBadge size="sm" /> : null}
+                <SlideLayers slides={slides} active={active} decorative />
+                <span className={`badge-slot${showBadge ? " is-on" : ""}`}>
+                  <AiBadge size="sm" />
+                </span>
               </div>
               <span className="phone-line" />
               <span className="phone-line phone-line--short" />

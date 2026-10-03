@@ -104,7 +104,8 @@ test("partidos: siglas e números únicos, hex válidos e contraste mínimo entr
 
     assert.ok(distance(primary, secondary) >= 60, party.acronym);
     assert.ok(distance(primary, accent) >= 60, party.acronym);
-    assert.ok(distance(secondary, accent) >= 60, party.acronym);
+    // Partido de duas cores (ex.: Missão, amarelo e preto) repete a mesma cor em secondary e accent.
+    assert.ok(secondary === accent || distance(secondary, accent) >= 60, party.acronym);
   }
 });
 

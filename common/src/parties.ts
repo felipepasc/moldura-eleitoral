@@ -156,7 +156,8 @@ export const PARTIES: readonly Party[] = [
     acronym: "MISSÃO",
     name: "Partido Missão",
     number: "14",
-    colors: { primary: "#000000", secondary: "#fdbf35", accent: "#ffffff" },
+    // Amarelo e preto (onça do mascote); o amarelo vem da pesquisa (pt.wikipedia / CSS de missao.org.br).
+    colors: { primary: "#fdbf35", secondary: "#000000", accent: "#000000" },
     colorsEstimated: true,
   },
   {

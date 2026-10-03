@@ -8,6 +8,7 @@ import type { Office, StateCode } from "@moldura/common";
 import { Reveal } from "@/components/Reveal";
 import { FramedPortrait } from "@/components/home/FramedPortrait";
 import { displayName, filterCandidates, hasArt } from "@/lib/art";
+import { sortCandidatesAlphabetically } from "@/lib/candidate-order";
 import { OFFICE_OPTIONS } from "@/lib/offices";
 
 const TABS = OFFICE_OPTIONS;
@@ -16,7 +17,7 @@ export function CandidateGrid() {
   const [office, setOffice] = useState<Office>("presidente");
   const [state, setState] = useState<StateCode | "">("");
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
-  const candidates = filterCandidates(office, state);
+  const candidates = sortCandidatesAlphabetically(filterCandidates(office, state));
 
   function moveFocus(event: KeyboardEvent<HTMLButtonElement>, index: number) {
     const targets: Record<string, number> = {

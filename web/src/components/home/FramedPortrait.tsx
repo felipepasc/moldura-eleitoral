@@ -1,11 +1,11 @@
 import { AiBadge } from "@/components/AiBadge";
 import { artSrc, displayName, frameSrc } from "@/lib/art";
 
-type FramedPortraitProps = { id: string; name: string; badge?: "sm" | "md" | "lg" | "none"; decorative?: boolean; eager?: boolean };
+type FramedPortraitProps = { id: string; name: string; badge?: "sm" | "md" | "lg" | "none"; decorative?: boolean; eager?: boolean; frameAlt?: string };
 
 // Ilustração (ou silhueta genérica) recortada em círculo, com a moldura do candidato por cima.
 // O selo de IA aparece sempre que a imagem mostrada é uma ilustração gerada por IA.
-export function FramedPortrait({ id, name, badge = "md", decorative = false, eager = false }: FramedPortraitProps) {
+export function FramedPortrait({ id, name, badge = "md", decorative = false, eager = false, frameAlt }: FramedPortraitProps) {
   const art = artSrc(id);
   const readable = displayName(name);
 
@@ -22,7 +22,7 @@ export function FramedPortrait({ id, name, badge = "md", decorative = false, eag
           </svg>
         )}
       </div>
-      <img className="portrait-frame" src={frameSrc(id)} alt={decorative ? "" : `Moldura de ${readable}`} loading={eager ? "eager" : "lazy"} decoding="async" width={1080} height={1080} />
+      <img className="portrait-frame" src={frameSrc(id)} alt={decorative ? "" : (frameAlt ?? `Moldura de ${readable}`)} loading={eager ? "eager" : "lazy"} decoding="async" width={1080} height={1080} />
       {art && badge !== "none" ? <AiBadge size={badge} /> : null}
     </div>
   );

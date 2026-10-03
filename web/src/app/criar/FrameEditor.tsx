@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { CANDIDATES, FRAME_SIZE, MAX_ZOOM, PHOTO_MAX_BYTES, PHOTO_MIME_TYPES, PRICE_CENTS, candidatesBy } from "@moldura/common";
 import type { Framing } from "@moldura/common";
 import { createOrder, messageOf } from "@/lib/api";
+import { sortCandidatesAlphabetically } from "@/lib/candidate-order";
 import { OFFICE_OPTIONS } from "@/lib/offices";
 import { drawPreview } from "@/lib/preview";
 
@@ -213,7 +214,7 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
         <label htmlFor="candidate">2. Moldura</label>
         <select id="candidate" value={candidateId} onChange={(event) => setCandidateId(event.target.value)}>
           {OFFICE_OPTIONS.map((office) => {
-            const group = candidatesBy(office.office);
+            const group = sortCandidatesAlphabetically(candidatesBy(office.office));
 
             if (group.length === 0) {
               return null;

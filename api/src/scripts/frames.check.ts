@@ -2,8 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { CANDIDATES } from "@moldura/common";
-import { buildFrameSvg, missingGlyphs, renderPlaceholderFrame, validateFrame } from "@/scripts/placeholder-frame";
+import { CANDIDATES, CreateOrderSchema, findCandidate, findParty } from "@moldura/common";
+import { NEUTRAL_FRAME, buildFrameSvg, missingGlyphs, renderPlaceholderFrame, validateFrame } from "@/scripts/placeholder-frame";
 
 const FRAMES_DIR = path.resolve("assets/frames");
 
@@ -94,3 +94,41 @@ for (const candidate of CANDIDATES) {
     assert.deepEqual(await validateFrame(png), []);
   });
 }
+
+test("a moldura neutra passa no validador, não tem número e não é candidato", async () => {
+  const png = await readFile(path.join(FRAMES_DIR, `${NEUTRAL_FRAME.id}.png`));
+
+  assert.deepEqual(await validateFrame(png), []);
+  assert.equal(NEUTRAL_FRAME.id, "neutral");
+  assert.equal(NEUTRAL_FRAME.number, undefined);
+  assert.deepEqual(missingGlyphs(NEUTRAL_FRAME.frameName), []);
+  assert.equal(findCandidate("neutral"), undefined);
+  assert.ok(!CANDIDATES.some((candidate) => candidate.id === "neutral"));
+  assert.equal(CreateOrderSchema.shape.candidateId.safeParse("neutral").success, false);
+});
+
+test("a moldura neutra não usa as cores de nenhum partido", () => {
+  const svg = buildFrameSvg(NEUTRAL_FRAME).toLowerCase();
+
+  assert.ok(svg.includes("<path"));
+  assert.ok(!svg.includes("<text"));
+
+  for (const color of NEUTRAL_FRAME.colors) {
+    assert.ok(!["#e20e28", "#015aaa", "#022a59", "#ef5a23"].includes(color.toLowerCase()), color);
+  }
+});
+
+test("Missão é amarelo e preto, com nome e número legíveis", () => {
+  const party = findParty("MISSÃO");
+  const renan = findCandidate("renan-santos");
+
+  assert.ok(party && renan);
+  assert.equal(party.colors.primary.toLowerCase(), "#fdbf35");
+  assert.equal(party.colors.secondary, "#000000");
+  assert.equal(party.colors.accent, "#000000");
+
+  const svg = buildFrameSvg(renan).toLowerCase();
+
+  assert.ok(svg.includes('stroke="#fdbf35"'), "anel amarelo");
+  assert.ok(svg.includes('fill="#000000"'), "texto preto sobre o amarelo");
+});
