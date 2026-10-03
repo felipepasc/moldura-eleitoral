@@ -1,7 +1,7 @@
 import { innerRadius, placePhoto } from "@moldura/common";
 import type { Framing } from "@moldura/common";
 import { PREVIEW_SIZE } from "@/lib/preview-geometry";
-import { WATERMARK_BASE_SIZE, watermarkLayout } from "@/lib/watermark";
+import { WATERMARK_BASE_SIZE, isSmallRow, watermarkLayout } from "@/lib/watermark";
 
 const WATERMARK_TEXT = "PRÉVIA • NÃO PAGO";
 const WATERMARK_SMALL_TEXT = "moldura-eleitoral";
@@ -16,7 +16,7 @@ function drawWatermark(ctx: CanvasRenderingContext2D, size: number): void {
   ctx.lineJoin = "round";
 
   for (const tile of watermarkLayout(size)) {
-    const small = tile.row % 3 === 1;
+    const small = isSmallRow(tile.row);
 
     ctx.save();
     ctx.translate(tile.x, tile.y);

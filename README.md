@@ -50,6 +50,8 @@ Na prévia (`/criar`) há, além disso:
 - Resolução menor: o canvas da prévia tem 540 × 540 (`PREVIEW_SIZE`); o enquadramento é guardado em frações, então o pedido enviado é o mesmo e o servidor compõe em 1080.
 - Atrito (só ajuda, não impede): bloqueio de menu de contexto, arrastar e seleção na prévia; na impressão a prévia some e aparece um aviso; nos atalhos de captura do sistema (PrintScreen, Win/Cmd+Shift+S, Cmd+Shift+3/4/5) a prévia fica preta por ~1,5 s e tenta limpar a área de transferência; em computador, a prévia escurece enquanto a janela está sem foco ou oculta e volta no foco ou ao mexer o mouse.
 
+A prévia de 540 px é ampliada na tela, então fica um pouco suave em telas de alta densidade (de propósito). No Windows, o PrintScreen é capturado pelo sistema antes de a página reagir; escurecer e limpar a área de transferência (no keyup) é só tentativa.
+
 O que isso NÃO impede: print pelo botão do celular, gravadores de tela, ferramentas do sistema que não passam pelo navegador, câmera apontada para a tela. Uma página web não consegue detectar nem bloquear capturas de forma confiável (tela preta em print só existe com vídeo com DRM ou app nativo). Por isso o site não promete isso; a prévia é só de baixa resolução e marcada.
 
 ### Fonte das molduras

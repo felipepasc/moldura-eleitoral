@@ -7,14 +7,14 @@ import { CANDIDATES, MAX_ZOOM, PHOTO_MAX_BYTES, PHOTO_MIME_TYPES, PRICE_CENTS, c
 import type { Framing } from "@moldura/common";
 import { createOrder, messageOf } from "@/lib/api";
 import { sortCandidatesAlphabetically } from "@/lib/candidate-order";
-import { canSubmit, previewFrameSrc } from "@/lib/frame-choice";
+import { canSubmit, frameFailed, frameLoaded, frameLoading, isFrameFailed, isFrameReady, payHint as describePayHint, previewFrameSrc } from "@/lib/frame-choice";
+import type { FrameStatus } from "@/lib/frame-choice";
 import { OFFICE_OPTIONS } from "@/lib/offices";
 import { drawPreview } from "@/lib/preview";
 import { PREVIEW_SIZE, dragFraming } from "@/lib/preview-geometry";
 import { BLACKOUT_MS, isCaptureShortcut } from "@/lib/protection";
 
 const KEY_STEP = 0.02;
-const FRAME_ERROR = "Não foi possível carregar a moldura.";
 const clamp = (value: number) => Math.min(1, Math.max(-1, value));
 const price = (PRICE_CENTS / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -36,6 +36,8 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [dragging, setDragging] = useState(false);
+  const [frameStatus, setFrameStatus] = useState<FrameStatus>(() => frameLoading(initialCandidateId));
+  const [frameAttempt, setFrameAttempt] = useState(0);
   const [shortcutHidden, setShortcutHidden] = useState(false);
   const [awayHidden, setAwayHidden] = useState(false);
   const previewRef = useRef<HTMLDivElement>(null);
@@ -119,20 +121,22 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
     };
   }, []);
 
+  // O status da moldura fica separado do erro genérico (que escolher a foto limpa).
   useEffect(() => {
     let active = true;
     const element = new Image();
 
+    setFrameStatus(frameLoading(candidateId));
     element.onload = () => {
       if (active) {
         setFrame({ id: candidateId, image: element });
-        setError((current) => (current === FRAME_ERROR ? "" : current));
+        setFrameStatus(frameLoaded(candidateId));
       }
     };
     element.onerror = () => {
       if (active) {
         setFrame(null);
-        setError(FRAME_ERROR);
+        setFrameStatus(frameFailed(candidateId));
       }
     };
     element.src = previewFrameSrc(candidateId);
@@ -140,7 +144,7 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
     return () => {
       active = false;
     };
-  }, [candidateId]);
+  }, [candidateId, frameAttempt]);
 
   useEffect(() => {
     if (!file) {
@@ -250,7 +254,8 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
     setFraming((current) => dragFraming({ ...current, offsetX: drag.offsetX, offsetY: drag.offsetY }, { x: drag.x, y: drag.y }, { x: event.clientX, y: event.clientY }, width));
   }
 
-  const frameReady = frame !== null && frame.id === candidateId;
+  const frameReady = frame !== null && frame.id === candidateId && isFrameReady(frameStatus, candidateId);
+  const frameFailedNow = candidateId !== "" && isFrameFailed(frameStatus, candidateId);
   const candidateName = CANDIDATES.find((candidate) => candidate.id === candidateId)?.name ?? "";
 
   async function submit() {
@@ -291,17 +296,7 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
     setFraming((current) => ({ ...current, zoom: Math.min(MAX_ZOOM, Math.max(1, Math.round((current.zoom + delta) * 100) / 100)) }));
   }
 
-  let payHint = "Escolha sua foto e a moldura para continuar.";
-
-  if (ready) {
-    payHint = "Você paga por Pix e baixa a foto em seguida.";
-  } else if (candidateId && !frameReady) {
-    payHint = error === FRAME_ERROR ? FRAME_ERROR : "Carregando a moldura…";
-  } else if (photoReady) {
-    payHint = "Agora escolha a moldura para continuar.";
-  } else if (candidateId) {
-    payHint = "Agora escolha a sua foto para continuar.";
-  }
+  const payHint = describePayHint({ candidateId, photoReady, ready, frame: frameStatus });
 
   return (
     <section className="editor">
@@ -491,7 +486,17 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
               {error}
             </p>
           ) : null}
-          <p className="hint">{payHint} A prévia é grátis; a foto final é montada depois do Pix, sem marca d&apos;água.</p>
+          {frameFailedNow ? (
+            <div className="frame-failed" role="alert">
+              <span>{payHint}</span>
+              <button type="button" className="btn alt retry-btn" onClick={() => setFrameAttempt((current) => current + 1)}>
+                Tentar de novo
+              </button>
+            </div>
+          ) : null}
+          <p className="hint">
+            {frameFailedNow ? "" : `${payHint} `}A prévia é grátis; a foto final é montada depois do Pix, sem marca d&apos;água.
+          </p>
         </li>
       </ol>
     </section>
