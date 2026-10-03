@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CANDIDATES, CreateOrderSchema, FRAME_SIZE, PARTIES, STATES, candidatesBy, findCandidate, findParty, innerRadius, placePhoto } from "./index";
+import { CANDIDATES, CreateOrderSchema, FRAME_SIZE, OrderSchema, PARTIES, STATES, candidatesBy, findCandidate, findParty, innerRadius, placePhoto } from "./index";
 
 test("innerRadius deixa 13% de anel de cada lado", () => {
   assert.equal(innerRadius(FRAME_SIZE), 540 - 140.4);
@@ -130,4 +130,17 @@ test("27 estados e nenhum governador cadastrado ainda", () => {
   assert.equal(new Set(STATES.map((state) => state.code)).size, 27);
   assert.deepEqual(candidatesBy("governador"), []);
   assert.deepEqual(candidatesBy("governador", "SP"), []);
+});
+
+test("OrderSchema: id é uuid e downloadUrl é URL http/https ou null", () => {
+  const order = { id: "3f2b6c1e-8a4d-4c2b-9e1f-2a3b4c5d6e7f", status: "paid", candidateId: "lula", pix: null, downloadUrl: "https://files.exemplo.com.br/results/a.png?X-Amz-Signature=1" };
+
+  assert.equal(OrderSchema.safeParse(order).success, true);
+  assert.equal(OrderSchema.safeParse({ ...order, downloadUrl: "http://localhost:9300/b/results/a.png" }).success, true);
+  assert.equal(OrderSchema.safeParse({ ...order, downloadUrl: null }).success, true);
+  assert.equal(OrderSchema.safeParse({ ...order, id: "123" }).success, false);
+  assert.equal(OrderSchema.safeParse({ ...order, id: "../admin" }).success, false);
+  assert.equal(OrderSchema.safeParse({ ...order, downloadUrl: "javascript:alert(1)" }).success, false);
+  assert.equal(OrderSchema.safeParse({ ...order, downloadUrl: "data:image/png;base64,AAA" }).success, false);
+  assert.equal(OrderSchema.safeParse({ ...order, downloadUrl: "não é url" }).success, false);
 });

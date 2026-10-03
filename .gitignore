@@ -6,3 +6,5 @@ node_modules
 dist
 *.tsbuildinfo
 web/public/frames
+web/next-env.d.ts
+.superpowers/

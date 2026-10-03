@@ -70,11 +70,11 @@ moldura eleitoral/
 
 ## Integração AbacatePay (a confirmar na doc oficial no plano)
 
-Base observada no `talkify-app` (API v2): `https://api.abacatepay.com/v2`, `Authorization: Bearer <chave>`.
+Base observada em outro projeto do autor (API v2): `https://api.abacatepay.com/v2`, `Authorization: Bearer <chave>`.
 - Criar: `POST /transparents/create` com `{ method: "PIX", data: { amount, description, expiresIn } }` → `id`, `brCode`, `brCodeBase64`, `expiresAt`.
 - Consultar: `GET /transparents/check?id=` → `PENDING | PAID | EXPIRED | CANCELLED | REFUNDED`.
 - Eventos de pago aceitos: `transparent.completed`, `billing.paid`, `checkout.completed`.
-- Chave só na `api`; dev/sandbox é definido pela chave usada. O `/v2` e os campos acima foram vistos no código do talkify, não na doc — **verificar antes de implementar**.
+- Chave só na `api`; dev/sandbox é definido pela chave usada. O `/v2` e os campos acima foram vistos no código de outro projeto do autor, não na doc — **verificar antes de implementar**.
 
 ## Segurança, limites e limpeza
 

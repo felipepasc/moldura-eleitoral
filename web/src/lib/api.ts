@@ -1,21 +1,29 @@
 import { OrderSchema } from "@moldura/common";
 import type { Framing, Order } from "@moldura/common";
+import { DEFAULT_API_ORIGIN, normalizeApiUrl } from "@/lib/origin";
+import { parseRetryAfter } from "@/lib/polling";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:6600";
+const API_URL = normalizeApiUrl(process.env.NEXT_PUBLIC_API_URL, DEFAULT_API_ORIGIN);
 
 export const FALLBACK_MESSAGE = "Algo deu errado. Tente de novo.";
 
 export class ApiError extends Error {
   readonly status: number;
+  readonly retryAfterMs: number | undefined;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, retryAfterMs?: number) {
     super(message);
     this.status = status;
+    this.retryAfterMs = retryAfterMs;
   }
 }
 
 export function statusOf(caught: unknown): number {
   return caught instanceof ApiError ? caught.status : 0;
+}
+
+export function retryAfterOf(caught: unknown): number | undefined {
+  return caught instanceof ApiError ? caught.retryAfterMs : undefined;
 }
 
 export function messageOf(caught: unknown): string {
@@ -39,7 +47,7 @@ async function readOrder(response: Response): Promise<Order> {
         ? json.error
         : FALLBACK_MESSAGE;
 
-    throw new ApiError(message, response.status);
+    throw new ApiError(message, response.status, parseRetryAfter(response.headers.get("Retry-After"), Date.now()));
   }
 
   const parsed = OrderSchema.safeParse(json);

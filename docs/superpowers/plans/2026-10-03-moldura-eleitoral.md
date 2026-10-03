@@ -1299,7 +1299,7 @@ git commit -m "feat(api): normalização da foto e montagem da imagem final"
 
 - [ ] **Step 1: Conferir a documentação oficial da AbacatePay (obrigatório antes de codar)**
 
-A spec marcou os endpoints abaixo como vindos do código do `talkify-app`, não da documentação. Abra a documentação oficial da AbacatePay e confirme: URL base e versão; endpoint e corpo de criação de Pix (QR Code Pix); campos da resposta (`id`, `brCode`, `brCodeBase64`, `expiresAt`); endpoint e valores de status; nomes dos eventos de webhook de pagamento e como o webhook se autentica. Se algo diferir do que está neste plano, ajuste **somente** `abacatepay.ts`, `abacatepay.check.ts` e a lista `PAID_EVENTS` da Task 8, e anote a diferença no `README.md`.
+A spec marcou os endpoints abaixo como vindos do código de outro projeto do autor, não da documentação. Abra a documentação oficial da AbacatePay e confirme: URL base e versão; endpoint e corpo de criação de Pix (QR Code Pix); campos da resposta (`id`, `brCode`, `brCodeBase64`, `expiresAt`); endpoint e valores de status; nomes dos eventos de webhook de pagamento e como o webhook se autentica. Se algo diferir do que está neste plano, ajuste **somente** `abacatepay.ts`, `abacatepay.check.ts` e a lista `PAID_EVENTS` da Task 8, e anote a diferença no `README.md`.
 
 - [ ] **Step 2: Escrever o teste que falha**
 
@@ -3640,7 +3640,7 @@ Pedido do usuário (03/10/2026, aprovado em chat): cadastrar os principais parti
 
 ### Task 15: Página inicial animada, seletor por cargo/estado e selo de IA
 
-Pedido do usuário: página inicial "toda animada" no estilo do print de referência (`C:\Users\fepas\Downloads\WhatsApp Image 2026-10-03 at 15.45.30.jpeg`: fundo claro azulado com formas verde/amarelo da bandeira, título grande com sublinhado amarelo à mão, botão azul "Criar agora →", moldura circular grande com avatar ilustrado, celular inclinado, nota amarela "Mostre seu apoio!", anotação cursiva "Sua foto com a moldura em segundos!", cartões dos candidatos com selo verde "Moldura pronta", faixa "Como funciona" com 3 passos e setas) + ilustrações estilizadas (não realistas) geradas por IA dos principais candidatos, com **símbolo de IA no cantinho de cada ilustração**.
+Pedido do usuário: página inicial "toda animada" no estilo do print de referência (a imagem de referência enviada pelo usuário: fundo claro azulado com formas verde/amarelo da bandeira, título grande com sublinhado amarelo à mão, botão azul "Criar agora →", moldura circular grande com avatar ilustrado, celular inclinado, nota amarela "Mostre seu apoio!", anotação cursiva "Sua foto com a moldura em segundos!", cartões dos candidatos com selo verde "Moldura pronta", faixa "Como funciona" com 3 passos e setas) + ilustrações estilizadas (não realistas) geradas por IA dos principais candidatos, com **símbolo de IA no cantinho de cada ilustração**.
 
 **Files:**
 - Create: `web/src/components/AiBadge.tsx`, `web/src/components/Reveal.tsx` (client; `IntersectionObserver`), `web/src/components/home/Hero.tsx`, `web/src/components/home/CandidateGrid.tsx`, `web/src/components/home/Steps.tsx`, `web/src/components/home/PartiesStrip.tsx`, `web/public/art/<id>.webp` (ilustrações aprovadas, 640×640 WebP)

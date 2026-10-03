@@ -13,3 +13,23 @@ export function normalizeOrigin(raw: string | undefined, fallback: string): stri
     return "";
   }
 }
+
+// URL base da api: aceita caminho (ex.: https://site/api), mas sem query/hash e sem barras finais,
+// para `${base}/orders` nunca virar `//orders`. Sem caminho, é só a origem normalizada.
+export function normalizeApiUrl(raw: string | undefined, fallback: string): string {
+  const value = (raw ?? fallback).trim();
+
+  try {
+    const url = new URL(value);
+
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return "";
+    }
+
+    const path = url.pathname.replace(/\/+$/, "");
+
+    return path ? `${url.origin}${path}` : normalizeOrigin(value, fallback);
+  } catch {
+    return "";
+  }
+}

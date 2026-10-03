@@ -26,7 +26,7 @@ export const OrderStatusSchema = z.enum(ORDER_STATUSES);
 export type OrderStatus = z.infer<typeof OrderStatusSchema>;
 
 export const OrderSchema = z.object({
-  id: z.string(),
+  id: z.uuid(),
   status: OrderStatusSchema,
   candidateId: z.string(),
   pix: z
@@ -36,6 +36,7 @@ export const OrderSchema = z.object({
       expiresAt: z.string(),
     })
     .nullable(),
-  downloadUrl: z.string().nullable(),
+  // Só http/https: o link vira href no navegador.
+  downloadUrl: z.url({ protocol: /^https?$/ }).nullable(),
 });
 export type Order = z.infer<typeof OrderSchema>;

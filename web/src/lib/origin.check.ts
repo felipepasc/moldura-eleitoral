@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { DEFAULT_IMAGES_ORIGIN, normalizeOrigin } from "./origin";
+import { DEFAULT_API_ORIGIN, DEFAULT_IMAGES_ORIGIN, normalizeApiUrl, normalizeOrigin } from "./origin";
 
 test("normaliza barra final, caixa do host, porta padrão e caminho", () => {
   assert.equal(normalizeOrigin("http://localhost:9300/", DEFAULT_IMAGES_ORIGIN), "http://localhost:9300");
@@ -21,4 +21,21 @@ test("undefined usa o padrão; vazio, lixo e outros protocolos viram vazio", () 
   assert.equal(normalizeOrigin("javascript:alert(1)", DEFAULT_IMAGES_ORIGIN), "");
   assert.equal(normalizeOrigin("file:///x", DEFAULT_IMAGES_ORIGIN), "");
   assert.equal(normalizeOrigin("data:image/png;base64,AAA", DEFAULT_IMAGES_ORIGIN), "");
+});
+
+test("normalizeApiUrl tira barras finais e nunca gera //orders", () => {
+  assert.equal(normalizeApiUrl("http://localhost:6600/", DEFAULT_API_ORIGIN), "http://localhost:6600");
+  assert.equal(normalizeApiUrl("https://API.exemplo.com.br///", DEFAULT_API_ORIGIN), "https://api.exemplo.com.br");
+  assert.equal(normalizeApiUrl("https://exemplo.com.br/api/", DEFAULT_API_ORIGIN), "https://exemplo.com.br/api");
+  assert.equal(normalizeApiUrl("https://exemplo.com.br/api//", DEFAULT_API_ORIGIN), "https://exemplo.com.br/api");
+  assert.equal(normalizeApiUrl("  https://exemplo.com.br  ", DEFAULT_API_ORIGIN), "https://exemplo.com.br");
+  assert.ok(!`${normalizeApiUrl("http://localhost:6600/", DEFAULT_API_ORIGIN)}/orders`.includes("//orders"));
+});
+
+test("normalizeApiUrl: undefined usa o padrão; query, hash, lixo e outros protocolos ficam de fora", () => {
+  assert.equal(normalizeApiUrl(undefined, DEFAULT_API_ORIGIN), "http://localhost:6600");
+  assert.equal(normalizeApiUrl("https://exemplo.com.br/api?x=1#y", DEFAULT_API_ORIGIN), "https://exemplo.com.br/api");
+  assert.equal(normalizeApiUrl("não é url", DEFAULT_API_ORIGIN), "");
+  assert.equal(normalizeApiUrl("javascript:alert(1)", DEFAULT_API_ORIGIN), "");
+  assert.equal(normalizeApiUrl("", DEFAULT_API_ORIGIN), "");
 });

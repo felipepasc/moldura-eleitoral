@@ -55,3 +55,9 @@ test("decideDownload: link inutilizável NÃO remove (fica indisponível)", () =
   assert.deepEqual(decideDownload("paid", "javascript:alert(1)", ORIGIN), { kind: "unavailable" });
   assert.deepEqual(decideDownload("paid", URL_OK, ""), { kind: "unavailable" });
 });
+
+test("/pedido: link pago inutilizável vira indisponível (sem apagar nada) e link bom passa", () => {
+  assert.deepEqual(decideDownload("paid", "https://evil.example/x.png", ORIGIN), { kind: "unavailable" });
+  assert.deepEqual(decideDownload("paid", "javascript:alert(1)", ORIGIN), { kind: "unavailable" });
+  assert.deepEqual(decideDownload("paid", `${ORIGIN}/results/a.png?sig=1`, ORIGIN), { kind: "ok", url: `${ORIGIN}/results/a.png?sig=1` });
+});

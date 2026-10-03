@@ -42,6 +42,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <footer className="site-footer">
           <p>Site independente de apoio de eleitores. Não é material oficial de nenhuma campanha.</p>
           <p>{AI_NOTE}</p>
+          <nav className="footer-links" aria-label="Informações">
+            <Link href="/privacidade">Privacidade</Link>
+            <Link href="/termos">Termos de uso</Link>
+          </nav>
         </footer>
       </body>
     </html>

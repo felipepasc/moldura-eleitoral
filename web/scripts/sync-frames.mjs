@@ -1,4 +1,4 @@
-import { cp, mkdir, readdir } from "node:fs/promises";
+import { cp, mkdir, readdir, rm } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 
@@ -6,6 +6,8 @@ const source = fileURLToPath(new URL("../../api/assets/frames", import.meta.url)
 const target = fileURLToPath(new URL("../public/frames", import.meta.url));
 const SMALL_SIZE = 480;
 
+// Começa do zero: molduras de candidatos removidos (PNG e WebP) não ficam para trás.
+await rm(target, { recursive: true, force: true });
 await mkdir(target, { recursive: true });
 await cp(source, target, { recursive: true });
 

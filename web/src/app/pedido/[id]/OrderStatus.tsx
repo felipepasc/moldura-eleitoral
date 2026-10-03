@@ -3,9 +3,13 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { Order } from "@moldura/common";
-import { getOrder, messageOf, statusOf } from "@/lib/api";
-import { POLL_BASE_MS, nextDelay, qrSource } from "@/lib/polling";
+import { getOrder, messageOf, retryAfterOf, statusOf } from "@/lib/api";
+import { decideDownload } from "@/lib/download-url";
+import { DEFAULT_IMAGES_ORIGIN, normalizeOrigin } from "@/lib/origin";
+import { POLL_BASE_MS, nextDelay, qrSource, retryDelay, shouldKeepPolling } from "@/lib/polling";
 import { SHARED_DEVICE_WARNING, browserStorage, removeSavedOrder, saveOrder } from "@/lib/my-orders";
+
+const IMAGES_ORIGIN = normalizeOrigin(process.env.NEXT_PUBLIC_IMAGES_ORIGIN, DEFAULT_IMAGES_ORIGIN);
 
 export function OrderStatus({ id }: { id: string }) {
   const [order, setOrder] = useState<Order | null>(null);
@@ -13,11 +17,12 @@ export function OrderStatus({ id }: { id: string }) {
   const [copied, setCopied] = useState(false);
   const [notFound, setNotFound] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+  const [finished, setFinished] = useState(false);
 
   const status = order?.status;
   const candidateId = order?.candidateId;
   const savable = status === "paid" && Boolean(order?.downloadUrl);
-  const stopped = notFound || status === "paid" || status === "expired";
+  const stopped = notFound || status === "paid" || finished;
 
   useEffect(() => {
     if (stopped) {
@@ -27,6 +32,7 @@ export function OrderStatus({ id }: { id: string }) {
     let active = true;
     let inflight = false;
     let delay = POLL_BASE_MS;
+    let expiredPolls = 0;
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     function schedule() {
@@ -51,6 +57,17 @@ export function OrderStatus({ id }: { id: string }) {
         setOrder(next);
         setError("");
         delay = nextDelay(delay, true);
+
+        // Expirado: ainda consulta algumas vezes (um Pix pago no último segundo ainda chega).
+        expiredPolls = next.status === "expired" ? expiredPolls + 1 : 0;
+
+        if (!shouldKeepPolling(next.status, expiredPolls)) {
+          if (next.status === "expired") {
+            setFinished(true);
+          }
+
+          return;
+        }
       } catch (caught) {
         if (!active) {
           return;
@@ -64,6 +81,11 @@ export function OrderStatus({ id }: { id: string }) {
 
         setError(messageOf(caught));
         delay = nextDelay(delay, false);
+
+        // 429/503: respeita o Retry-After da api quando ele pede para esperar mais que o backoff.
+        if (statusOf(caught) === 429 || statusOf(caught) === 503) {
+          delay = retryDelay(delay, retryAfterOf(caught));
+        }
       } finally {
         inflight = false;
       }
@@ -147,13 +169,25 @@ function OrderView({ order, error, notFound, copied, dismissed, onCopy, onDismis
     );
   }
 
-  if (order.status === "paid" && order.downloadUrl) {
+  const download = decideDownload(order.status, order.downloadUrl, IMAGES_ORIGIN);
+
+  if (order.status === "paid" && order.downloadUrl && download.kind === "unavailable") {
+    return (
+      <section className="status-card is-success">
+        <svg className="status-icon" viewBox="0 0 48 48" aria-hidden="true" focusable="false"><circle cx="24" cy="24" r="22" fill="currentColor" /><path d="M14 24.5l7 7 13-14" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        <h2>Pagamento confirmado.</h2>
+        <p>O link da sua foto está indisponível neste momento. Recarregue esta página em instantes.</p>
+      </section>
+    );
+  }
+
+  if (order.status === "paid" && download.kind === "ok") {
     return (
       <section className="status-card is-success">
         <svg className="status-icon" viewBox="0 0 48 48" aria-hidden="true" focusable="false"><circle cx="24" cy="24" r="22" fill="currentColor" /><path d="M14 24.5l7 7 13-14" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" /></svg>
         <h2>Pagamento confirmado! Sua foto está pronta.</h2>
         <div className="row">
-          <a className="btn" href={order.downloadUrl} rel="noreferrer noopener">Baixar foto</a>
+          <a className="btn" href={download.url} rel="noreferrer noopener">Baixar foto</a>
           <Link className="btn alt" href="/criar">Criar outra</Link>
         </div>
         <p className="hint">O link vale por poucos minutos; recarregue esta página para gerar outro. A imagem fica disponível por 7 dias.</p>
@@ -186,7 +220,8 @@ function OrderView({ order, error, notFound, copied, dismissed, onCopy, onDismis
       <section className="status-card">
         <svg className="status-icon" viewBox="0 0 48 48" aria-hidden="true" focusable="false"><circle cx="24" cy="24" r="21" fill="none" stroke="currentColor" strokeWidth="4" /><path d="M24 13v12l8 5" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" /></svg>
         <h2>Esse Pix expirou.</h2>
-        <p>Crie a moldura de novo para gerar outro Pix.</p>
+        <p>Já pagou? Recarregue esta página em instantes — se o pagamento tiver sido confirmado, sua foto será liberada.</p>
+        <p className="hint">Se não pagou, crie a moldura de novo para gerar outro Pix.</p>
         <div className="row"><Link className="btn" href="/criar">Criar de novo</Link></div>
       </section>
     );
