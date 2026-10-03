@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { Order } from "@moldura/common";
 import { getOrder, messageOf, statusOf } from "@/lib/api";
 import { POLL_BASE_MS, nextDelay, qrSource } from "@/lib/polling";
+import { browserStorage, saveOrder } from "@/lib/my-orders";
 
 export function OrderStatus({ id }: { id: string }) {
   const [order, setOrder] = useState<Order | null>(null);
@@ -13,6 +14,8 @@ export function OrderStatus({ id }: { id: string }) {
   const [notFound, setNotFound] = useState(false);
 
   const status = order?.status;
+  const candidateId = order?.candidateId;
+  const savable = status === "paid" && Boolean(order?.downloadUrl);
   const stopped = notFound || status === "paid" || status === "expired";
 
   useEffect(() => {
@@ -87,6 +90,12 @@ export function OrderStatus({ id }: { id: string }) {
     };
   }, [id, stopped]);
 
+  useEffect(() => {
+    if (savable && candidateId) {
+      saveOrder(browserStorage(), { id, candidateId }, Date.now());
+    }
+  }, [savable, id, candidateId]);
+
   async function copyCode(code: string) {
     try {
       await navigator.clipboard.writeText(code);
@@ -127,6 +136,7 @@ function OrderView({ order, error, notFound, copied, onCopy }: ViewProps) {
           <Link className="btn alt" href="/criar">Criar outra</Link>
         </div>
         <p className="hint">O link vale por poucos minutos; recarregue esta página para gerar outro. A imagem fica disponível por 7 dias.</p>
+        <p className="hint">Guardamos este pedido neste aparelho por 7 dias. Veja em <Link href="/minhas">Minhas molduras</Link>.</p>
       </section>
     );
   }

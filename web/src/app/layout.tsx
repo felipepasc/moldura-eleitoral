@@ -15,7 +15,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <header className="top">
           <div className="wrap">
             <Link className="logo" href="/">Moldura Eleitoral</Link>
-            <Link className="btn" href="/criar">Criar agora</Link>
+            <nav className="row" style={{ alignItems: "center" }}>
+              <Link href="/minhas">Minhas molduras</Link>
+              <Link className="btn" href="/criar">Criar agora</Link>
+            </nav>
           </div>
         </header>
         {children}

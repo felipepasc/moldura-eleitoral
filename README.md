@@ -52,6 +52,14 @@ A limpeza roda uma vez na subida da api e depois a cada hora (`cleanupOrders`) e
 
 A regra de ciclo de vida do MinIO (`photos/` 2 dias, `results/` 8 dias) é só uma rede de segurança. Se ela não puder ser aplicada, a api apenas registra o aviso "regra de ciclo de vida" (texto: "Não consegui configurar a expiração automática do bucket") na subida: em produção, o operador precisa vigiar esse aviso.
 
+## Minhas molduras
+
+Depois do pagamento, o navegador guarda em `localStorage` (chave `moldura:orders:v1`) só o id do pedido, o candidato e a data, por 7 dias (máximo 20). Nunca a foto, o Pix ou o link de download. A página `/minhas` busca de novo cada imagem na api, que gera um link assinado novo a cada abertura. Há botões para apagar um item ou tudo.
+
+- Risco: o id do pedido funciona como credencial do download. Quem tiver acesso ao navegador vê as molduras; em computador compartilhado, apague ao terminar. Entradas inválidas, expiradas ou de pedidos que a api não conhece mais são removidas sozinhas.
+- O site envia `Content-Security-Policy` (ver `web/next.config.ts`): scripts e estilos só do próprio site (`'unsafe-inline'` é exigido pelo Next sem nonces), imagens do próprio site e da origem do MinIO, conexões só para a api.
+- Em produção defina `NEXT_PUBLIC_IMAGES_ORIGIN` (origem pública do MinIO, ex.: `https://files.exemplo.com.br`) e `NEXT_PUBLIC_API_URL` **antes do build**: os dois entram no CSP e no código do navegador.
+
 ## Checklist de produção
 
 - TLS na api e no MinIO (o link de download assinado usa o endereço do MinIO e precisa ser alcançável pelo navegador).
