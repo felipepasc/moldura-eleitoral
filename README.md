@@ -41,6 +41,17 @@ Os arquivos públicos `/frames/<id>.png` (servidos pelo web) são as molduras **
 - `web/scripts/sync-frames.mjs` (predev/prebuild) copia os PNG de 1080 px e gera `public/frames/<id>.webp` de 480 px com `sharp` (devDependency do web); a home usa o WebP e o `/criar` continua com o PNG, que o canvas da prévia precisa.
 - Teste dos helpers: de dentro de `web/`, `../api/node_modules/.bin/tsx --test src/lib/*.check.ts`.
 
+## Proteção da prévia
+
+O que protege de verdade é o servidor: a foto final, sem marca d'água e em 1080 px, só é montada na api depois do Pix pago. O navegador nunca recebe a imagem limpa e o código do web não exporta canvas (sem `toDataURL`, `toBlob` ou `captureStream`).
+
+Na prévia (`/criar`) há, além disso:
+- Marca d'água densa em duas grades cruzadas (−30° e +30°) com "PRÉVIA • NÃO PAGO", por cima da foto e da moldura; `web/src/lib/watermark.ts` tem a geometria e o teste garante que todo recorte de 15% × 15% contém marca. A foto continua visível para posicionar.
+- Resolução menor: o canvas da prévia tem 540 × 540 (`PREVIEW_SIZE`); o enquadramento é guardado em frações, então o pedido enviado é o mesmo e o servidor compõe em 1080.
+- Atrito (só ajuda, não impede): bloqueio de menu de contexto, arrastar e seleção na prévia; na impressão a prévia some e aparece um aviso; nos atalhos de captura do sistema (PrintScreen, Win/Cmd+Shift+S, Cmd+Shift+3/4/5) a prévia fica preta por ~1,5 s e tenta limpar a área de transferência; em computador, a prévia escurece enquanto a janela está sem foco ou oculta e volta no foco ou ao mexer o mouse.
+
+O que isso NÃO impede: print pelo botão do celular, gravadores de tela, ferramentas do sistema que não passam pelo navegador, câmera apontada para a tela. Uma página web não consegue detectar nem bloquear capturas de forma confiável (tela preta em print só existe com vídeo com DRM ou app nativo). Por isso o site não promete isso; a prévia é só de baixa resolução e marcada.
+
 ### Fonte das molduras
 
 O texto das molduras usa a Montserrat ExtraBold (subconjunto latin, `api/assets/fonts/montserrat-latin-800-normal.woff`, extraída do pacote npm `@fontsource/montserrat`, que não é dependência do projeto), licenciada sob a SIL Open Font License 1.1; o texto da licença está em `api/assets/fonts/Montserrat-OFL.txt`. O `opentype.js` (devDependency da api) converte os glifos em caminhos SVG.

@@ -201,7 +201,7 @@ select:disabled { background:#f1f5f9; color:var(--muted); cursor:not-allowed; }
 /* Criar: editor */
 .editor { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:28px; align-items:start; margin-block:24px 8px; }
 .editor-preview { position:sticky; top:16px; }
-.preview-card { padding:22px 22px 18px; background:linear-gradient(180deg,#f3f7fd,#fff 60%); border:1px solid var(--line); border-radius:24px; }
+.preview-card { -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; padding:22px 22px 18px; background:linear-gradient(180deg,#f3f7fd,#fff 60%); border:1px solid var(--line); border-radius:24px; }
 .preview-card .preview { max-width:460px; border-radius:50%; }
 .preview-card .preview:focus-visible { outline-offset:6px; border-radius:50%; }
 .preview-tip { margin:14px 0 0; text-align:center; color:var(--muted); font-size:14px; }
@@ -254,7 +254,7 @@ select:disabled { background:#f1f5f9; color:var(--muted); cursor:not-allowed; }
 .pay-summary { display:flex; align-items:baseline; justify-content:space-between; gap:12px; color:var(--muted); font-size:15px; }
 .pay-summary b { color:var(--ink); font-size:22px; letter-spacing:-.02em; }
 .pay-btn { width:100%; margin-top:12px; }
-.pay-btn:disabled { opacity:1; background:#c7d2e3; color:#fff; box-shadow:none; transform:none; }
+.pay-btn:disabled { opacity:1; background:#d5dce7; color:#3b4659; box-shadow:none; transform:none; cursor:not-allowed; }
 .editor-pay .hint { margin:10px 0 0; }
 
 /* Pedido e Minhas molduras */
@@ -275,6 +275,12 @@ select:disabled { background:#f1f5f9; color:var(--muted); cursor:not-allowed; }
 .notice p { margin:4px 0; }
 .saved-grid { grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); margin-top:20px; }
 .saved-card { border-radius:18px; padding:16px; }
+.print-notice { display:none; }
+.pix-sub { margin:0 0 10px; color:var(--muted); }
+@media print {
+  .preview-card canvas, .preview-tip, .dropzone-thumb, .frame-picker-thumb { display:none !important; }
+  .print-notice { display:block; margin:24px 0; font-size:16px; font-weight:600; text-align:center; }
+}
 @keyframes pulse { 50% { opacity:.35; transform:scale(.8); } }
 
 @media (max-width:900px) {

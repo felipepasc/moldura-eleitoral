@@ -6,7 +6,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
 
   return (
     <main>
-      <PageHeader title="Seu pedido">Pague o Pix e a foto sem marca d&apos;água fica pronta para baixar.</PageHeader>
+      <PageHeader title="Seu pedido" />
       <div className="wrap">
         <OrderStatus id={id} />
       </div>

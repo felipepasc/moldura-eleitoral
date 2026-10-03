@@ -3,13 +3,15 @@
 import { useEffect, useRef, useState } from "react";
 import type { DragEvent, KeyboardEvent, PointerEvent } from "react";
 import { useRouter } from "next/navigation";
-import { CANDIDATES, FRAME_SIZE, MAX_ZOOM, PHOTO_MAX_BYTES, PHOTO_MIME_TYPES, PRICE_CENTS, candidatesBy } from "@moldura/common";
+import { CANDIDATES, MAX_ZOOM, PHOTO_MAX_BYTES, PHOTO_MIME_TYPES, PRICE_CENTS, candidatesBy } from "@moldura/common";
 import type { Framing } from "@moldura/common";
 import { createOrder, messageOf } from "@/lib/api";
 import { sortCandidatesAlphabetically } from "@/lib/candidate-order";
 import { canSubmit, previewFrameSrc } from "@/lib/frame-choice";
 import { OFFICE_OPTIONS } from "@/lib/offices";
 import { drawPreview } from "@/lib/preview";
+import { PREVIEW_SIZE, dragFraming } from "@/lib/preview-geometry";
+import { BLACKOUT_MS, isCaptureShortcut } from "@/lib/protection";
 
 const KEY_STEP = 0.02;
 const FRAME_ERROR = "Não foi possível carregar a moldura.";
@@ -34,6 +36,88 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [dragging, setDragging] = useState(false);
+  const [shortcutHidden, setShortcutHidden] = useState(false);
+  const [awayHidden, setAwayHidden] = useState(false);
+  const previewRef = useRef<HTMLDivElement>(null);
+  const dragDepth = useRef(0);
+
+  // Atrito (não é proteção): escurece a prévia em atalhos de captura do sistema e, em computador
+  // (ponteiro fino), enquanto a janela está sem foco ou oculta. Volta ao normal no foco/interação.
+  useEffect(() => {
+    const finePointer = window.matchMedia("(pointer: fine)");
+    let timer: number | undefined;
+
+    function onKey(event: globalThis.KeyboardEvent) {
+      if (!isCaptureShortcut(event)) {
+        return;
+      }
+
+      setShortcutHidden(true);
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => setShortcutHidden(false), BLACKOUT_MS);
+
+      try {
+        void navigator.clipboard?.writeText("").catch(() => undefined);
+      } catch {
+        // A área de transferência pode recusar; é só atrito.
+      }
+    }
+
+    function away() {
+      if (finePointer.matches) {
+        setAwayHidden(true);
+      }
+    }
+
+    function back() {
+      setAwayHidden(false);
+    }
+
+    function onVisibility() {
+      if (document.visibilityState === "hidden") {
+        away();
+      } else if (document.hasFocus()) {
+        back();
+      }
+    }
+
+    window.addEventListener("keydown", onKey, true);
+    window.addEventListener("keyup", onKey, true);
+    window.addEventListener("blur", away);
+    window.addEventListener("focus", back);
+    window.addEventListener("pointerdown", back, true);
+    window.addEventListener("pointermove", back, true);
+    window.addEventListener("pageshow", back);
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("keydown", onKey, true);
+      window.removeEventListener("keyup", onKey, true);
+      window.removeEventListener("blur", away);
+      window.removeEventListener("focus", back);
+      window.removeEventListener("pointerdown", back, true);
+      window.removeEventListener("pointermove", back, true);
+      window.removeEventListener("pageshow", back);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
+
+  useEffect(() => {
+    const element = previewRef.current;
+
+    if (!element) {
+      return;
+    }
+
+    const block = (event: Event) => event.preventDefault();
+
+    element.addEventListener("selectstart", block);
+
+    return () => {
+      element.removeEventListener("selectstart", block);
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -95,9 +179,9 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
 
   useEffect(() => {
     if (canvasRef.current) {
-      drawPreview(canvasRef.current, image, frame && frame.id === candidateId ? frame.image : null, framing);
+      drawPreview(canvasRef.current, image, frame && frame.id === candidateId ? frame.image : null, framing, shortcutHidden || awayHidden);
     }
-  }, [image, frame, framing, candidateId]);
+  }, [image, frame, framing, candidateId, shortcutHidden, awayHidden]);
 
   function rejectFile(message: string) {
     setFile(null);
@@ -163,11 +247,7 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
 
     const width = event.currentTarget.getBoundingClientRect().width;
 
-    setFraming((current) => ({
-      ...current,
-      offsetX: clamp(drag.offsetX + (event.clientX - drag.x) / width),
-      offsetY: clamp(drag.offsetY + (event.clientY - drag.y) / width),
-    }));
+    setFraming((current) => dragFraming({ ...current, offsetX: drag.offsetX, offsetY: drag.offsetY }, { x: drag.x, y: drag.y }, { x: event.clientX, y: event.clientY }, width));
   }
 
   const frameReady = frame !== null && frame.id === candidateId;
@@ -193,10 +273,11 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
 
   const photoReady = image !== null;
   const ready = canSubmit({ candidateId, hasFile: file !== null, hasImage: photoReady, frameReady, busy });
-  const zoomPercent = Math.round(((framing.zoom - 1) / (MAX_ZOOM - 1)) * 100);
+  const zoomLabel = `${framing.zoom.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}×`;
 
   function dropFile(event: DragEvent<HTMLLabelElement>) {
     event.preventDefault();
+    dragDepth.current = 0;
     setDragging(false);
 
     const dropped = event.dataTransfer.files?.[0];
@@ -214,6 +295,8 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
 
   if (ready) {
     payHint = "Você paga por Pix e baixa a foto em seguida.";
+  } else if (candidateId && !frameReady) {
+    payHint = error === FRAME_ERROR ? FRAME_ERROR : "Carregando a moldura…";
   } else if (photoReady) {
     payHint = "Agora escolha a moldura para continuar.";
   } else if (candidateId) {
@@ -223,12 +306,13 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
   return (
     <section className="editor">
       <div className="editor-preview">
-        <div className="preview-card">
+        <div className="preview-card" ref={previewRef} onContextMenu={(event) => event.preventDefault()} onDragStart={(event) => event.preventDefault()}>
+          <p className="print-notice">A prévia não é impressa. Pague para baixar a foto final.</p>
           <canvas
             ref={canvasRef}
             className="preview"
-            width={FRAME_SIZE}
-            height={FRAME_SIZE}
+            width={PREVIEW_SIZE}
+            height={PREVIEW_SIZE}
             onPointerDown={startDrag}
             onPointerMove={moveDrag}
             onPointerUp={endDrag}
@@ -246,7 +330,7 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
             <path d="M10 2l6 2.5v4.6c0 4-2.6 7-6 8.9-3.4-1.9-6-4.9-6-8.9V4.5z" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
             <path d="M7.2 10l2 2 3.8-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-          A prévia é montada só no seu navegador e leva marca d&apos;água.
+          A prévia tem marca d&apos;água. A foto final, sem marca, só é liberada depois do pagamento.
         </p>
       </div>
 
@@ -262,6 +346,12 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
             className="visually-hidden"
             type="file"
             accept="image/jpeg,image/png,image/webp"
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                inputRef.current?.click();
+              }
+            }}
             onChange={(event) => {
               const chosen = event.target.files?.[0];
 
@@ -273,19 +363,27 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
           <label
             htmlFor="photo"
             className={`dropzone${dragging ? " is-dragging" : ""}${photoReady ? " has-photo" : ""}`}
-            onDragOver={(event) => {
+            onDragEnter={(event) => {
               event.preventDefault();
+              dragDepth.current += 1;
               setDragging(true);
             }}
-            onDragLeave={() => setDragging(false)}
+            onDragOver={(event) => event.preventDefault()}
+            onDragLeave={() => {
+              dragDepth.current = Math.max(0, dragDepth.current - 1);
+
+              if (dragDepth.current === 0) {
+                setDragging(false);
+              }
+            }}
             onDrop={dropFile}
           >
             {photoReady && image ? (
               <>
-                <img className="dropzone-thumb" src={image.src} alt="" />
+                <img className="dropzone-thumb" src={image.src} alt="" draggable={false} />
                 <span className="dropzone-text">
                   <b>{file?.name ?? "Foto escolhida"}</b>
-                  <span>Toque para trocar a foto</span>
+                  <span>Clique ou toque para trocar a foto</span>
                 </span>
               </>
             ) : (
@@ -316,7 +414,7 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
             </h2>
           </div>
           <div className="frame-picker">
-            <img className="frame-picker-thumb" src={candidateId ? `/frames/${candidateId}.webp` : "/frames/neutral.webp"} alt="" width={56} height={56} />
+            <img className="frame-picker-thumb" src={candidateId ? `/frames/${candidateId}.webp` : "/frames/neutral.webp"} alt="" width={56} height={56} draggable={false} />
             <select id="candidate" value={candidateId} onChange={(event) => setCandidateId(event.target.value)}>
               <option value="" disabled>
                 Escolha uma moldura…
@@ -355,7 +453,7 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
             <h2 className="editor-step-title">
               <label htmlFor="zoom">Ajuste</label>
             </h2>
-            <span className="editor-step-aside">Zoom {zoomPercent}%</span>
+            <span className="editor-step-aside">Zoom {zoomLabel}</span>
           </div>
           <div className="zoom-row">
             <button type="button" className="icon-btn" onClick={() => changeZoom(-0.1)} disabled={!photoReady || framing.zoom <= 1} aria-label="Diminuir zoom">

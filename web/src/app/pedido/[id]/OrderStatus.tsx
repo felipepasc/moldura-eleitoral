@@ -204,6 +204,7 @@ function OrderView({ order, error, notFound, copied, dismissed, onCopy, onDismis
       <div className="pix-body">
         <span className="status-pill"><span className="pulse-dot" aria-hidden="true" />Aguardando pagamento</span>
         <h2>Pague o Pix para liberar sua foto</h2>
+        <p className="pix-sub">Pague o Pix e a foto sem marca d&apos;água fica pronta para baixar.</p>
         <ol className="pix-steps">
           <li>Abra o app do seu banco e escolha Pix.</li>
           <li>Leia o QR Code ou use o código copia e cola.</li>
