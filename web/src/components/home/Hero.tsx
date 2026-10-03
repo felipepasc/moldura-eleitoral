@@ -69,11 +69,15 @@ export function Hero() {
     function sync() {
       stop();
 
+      // Movimento reduzido: só o slide neutro fica montado (nenhuma imagem de candidato é carregada).
       if (reduced.matches) {
         setActive(0);
+        setSlides([NEUTRAL_SLIDE]);
 
         return;
       }
+
+      setSlides(built);
 
       if (!document.hidden && built.length > 1) {
         timer = window.setInterval(() => {
@@ -82,7 +86,6 @@ export function Hero() {
       }
     }
 
-    setSlides(built);
     sync();
     reduced.addEventListener("change", sync);
     document.addEventListener("visibilitychange", sync);

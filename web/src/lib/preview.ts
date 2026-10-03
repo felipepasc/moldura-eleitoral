@@ -53,8 +53,16 @@ export function drawPreview(
 
     ctx.drawImage(image, placement.left, placement.top, placement.width, placement.height);
   } else {
-    ctx.fillStyle = "#e5e7eb";
+    // Sem foto: silhueta genérica (a mesma da home) até a pessoa escolher a foto.
+    ctx.fillStyle = "#dfe6f1";
     ctx.fillRect(0, 0, size, size);
+    ctx.fillStyle = "#a9b6c9";
+    ctx.beginPath();
+    ctx.arc(size / 2, size * 0.41, size * 0.15, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(size / 2, size * 0.98, size * 0.33, size * 0.32, 0, Math.PI, 0);
+    ctx.fill();
   }
 
   ctx.restore();

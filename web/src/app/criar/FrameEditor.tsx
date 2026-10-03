@@ -7,6 +7,7 @@ import { CANDIDATES, FRAME_SIZE, MAX_ZOOM, PHOTO_MAX_BYTES, PHOTO_MIME_TYPES, PR
 import type { Framing } from "@moldura/common";
 import { createOrder, messageOf } from "@/lib/api";
 import { sortCandidatesAlphabetically } from "@/lib/candidate-order";
+import { canSubmit, previewFrameSrc } from "@/lib/frame-choice";
 import { OFFICE_OPTIONS } from "@/lib/offices";
 import { drawPreview } from "@/lib/preview";
 
@@ -49,7 +50,7 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
         setError(FRAME_ERROR);
       }
     };
-    element.src = `/frames/${candidateId}.png`;
+    element.src = previewFrameSrc(candidateId);
 
     return () => {
       active = false;
@@ -172,7 +173,7 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
   const candidateName = CANDIDATES.find((candidate) => candidate.id === candidateId)?.name ?? "";
 
   async function submit() {
-    if (!file || !frameReady) {
+    if (!file || !canSubmit({ candidateId, hasFile: true, hasImage: image !== null, frameReady, busy })) {
       return;
     }
 
@@ -204,7 +205,7 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
         onKeyDown={moveByKey}
         role="img"
         tabIndex={0}
-        aria-label={`Prévia da sua foto com a moldura de ${candidateName}`}
+        aria-label={candidateName ? `Prévia da sua foto com a moldura de ${candidateName}` : "Prévia da sua foto com a moldura de exemplo; escolha uma moldura"}
       />
 
       <div>
@@ -213,6 +214,9 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
 
         <label htmlFor="candidate">2. Moldura</label>
         <select id="candidate" value={candidateId} onChange={(event) => setCandidateId(event.target.value)}>
+          <option value="" disabled>
+            Escolha uma moldura…
+          </option>
           {OFFICE_OPTIONS.map((office) => {
             const group = sortCandidatesAlphabetically(candidatesBy(office.office));
 
@@ -250,7 +254,7 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
         />
 
         <div className="row" style={{ marginTop: 20 }}>
-          <button className="btn" disabled={!file || !image || !frameReady || busy} onClick={submit}>
+          <button className="btn" disabled={!canSubmit({ candidateId, hasFile: file !== null, hasImage: image !== null, frameReady, busy })} onClick={submit}>
             {busy ? "Gerando Pix..." : `Baixar foto pronta • ${price}`}
           </button>
         </div>

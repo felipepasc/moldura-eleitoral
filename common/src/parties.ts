@@ -4,6 +4,8 @@ export type Party = {
   number: string;
   colors: { primary: string; secondary: string; accent: string };
   colorsEstimated: boolean;
+  // Partido de duas cores: secondary e accent são iguais de propósito (ex.: Missão, amarelo e preto).
+  twoColor?: true;
 };
 
 // Só dados públicos: sigla, nome, número e cores (nenhum logotipo é copiado).
@@ -159,6 +161,7 @@ export const PARTIES: readonly Party[] = [
     // Amarelo e preto (onça do mascote); o amarelo vem da pesquisa (pt.wikipedia / CSS de missao.org.br).
     colors: { primary: "#fdbf35", secondary: "#000000", accent: "#000000" },
     colorsEstimated: true,
+    twoColor: true,
   },
   {
     acronym: "DC",

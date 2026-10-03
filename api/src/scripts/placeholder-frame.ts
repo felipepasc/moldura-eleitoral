@@ -10,8 +10,8 @@ import type { Candidate } from "@moldura/common";
 export type FrameSpec = Pick<Candidate, "id" | "frameName" | "colors"> & { number?: string };
 
 // Moldura de exemplo da home: não é candidato (não está em CANDIDATES, não vai para /criar nem para pedidos).
-// Cores inspiradas na bandeira (verde, amarelo, azul), diferentes das de qualquer partido; sem selo de número.
-export const NEUTRAL_FRAME: FrameSpec = { id: "neutral", frameName: "SUA FOTO AQUI", colors: ["#00843d", "#ffdf00", "#002776"] };
+// Paleta neutra (grafite e cinzas claros), longe de todas as cores de partido (testado); texto branco; sem selo de número.
+export const NEUTRAL_FRAME: FrameSpec = { id: "neutral", frameName: "SUA FOTO AQUI", colors: ["#6b7280", "#cbd5e1", "#b4b4bb"] };
 
 const FONT_URL = new URL("../../assets/fonts/montserrat-latin-800-normal.woff", import.meta.url);
 const MAX_ARC_DEGREES = 100;

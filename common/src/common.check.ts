@@ -104,9 +104,15 @@ test("partidos: siglas e números únicos, hex válidos e contraste mínimo entr
 
     assert.ok(distance(primary, secondary) >= 60, party.acronym);
     assert.ok(distance(primary, accent) >= 60, party.acronym);
-    // Partido de duas cores (ex.: Missão, amarelo e preto) repete a mesma cor em secondary e accent.
-    assert.ok(secondary === accent || distance(secondary, accent) >= 60, party.acronym);
+    // Só partido marcado como de duas cores (twoColor) pode repetir a cor em secondary e accent.
+    if (party.twoColor) {
+      assert.equal(secondary, accent, party.acronym);
+    } else {
+      assert.ok(distance(secondary, accent) >= 60, party.acronym);
+    }
   }
+
+  assert.deepEqual(PARTIES.filter((party) => party.twoColor).map((party) => party.acronym), ["MISSÃO"]);
 });
 
 test("findParty acha por sigla e os nomes novos estão corretos", () => {

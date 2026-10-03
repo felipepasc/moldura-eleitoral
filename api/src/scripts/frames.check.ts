@@ -2,10 +2,19 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { CANDIDATES, CreateOrderSchema, findCandidate, findParty } from "@moldura/common";
+import { CANDIDATES, CreateOrderSchema, PARTIES, findCandidate, findParty } from "@moldura/common";
 import { NEUTRAL_FRAME, buildFrameSvg, missingGlyphs, renderPlaceholderFrame, validateFrame } from "@/scripts/placeholder-frame";
 
 const FRAMES_DIR = path.resolve("assets/frames");
+const MIN_PARTY_DISTANCE = 60;
+
+function rgbDistance(a: string, b: string): number {
+  const channels = (hex: string) => [1, 3, 5].map((index) => Number.parseInt(hex.slice(index, index + 2), 16));
+  const [ar, ag, ab] = channels(a);
+  const [br, bg, bb] = channels(b);
+
+  return Math.hypot(ar - br, ag - bg, ab - bb);
+}
 
 test("o placeholder passa no validador", async () => {
   const candidate = CANDIDATES[1];
@@ -113,9 +122,20 @@ test("a moldura neutra não usa as cores de nenhum partido", () => {
   assert.ok(svg.includes("<path"));
   assert.ok(!svg.includes("<text"));
 
+  // Nenhuma cor da moldura neutra pode ficar perto (distância RGB < 60) de qualquer cor de qualquer partido.
   for (const color of NEUTRAL_FRAME.colors) {
-    assert.ok(!["#e20e28", "#015aaa", "#022a59", "#ef5a23"].includes(color.toLowerCase()), color);
+    for (const party of PARTIES) {
+      for (const partyColor of [party.colors.primary, party.colors.secondary, party.colors.accent]) {
+        assert.ok(rgbDistance(color, partyColor) >= MIN_PARTY_DISTANCE, `${color} parece ${party.acronym} ${partyColor}`);
+      }
+    }
   }
+});
+
+test("o detector de cor de partido acusa uma paleta parecida", () => {
+  assert.ok(rgbDistance("#ffdf00", "#ffdf00") < MIN_PARTY_DISTANCE);
+  assert.ok(rgbDistance("#00843d", "#00923f") < MIN_PARTY_DISTANCE);
+  assert.ok(rgbDistance("#6b7280", "#ffffff") >= MIN_PARTY_DISTANCE);
 });
 
 test("Missão é amarelo e preto, com nome e número legíveis", () => {
