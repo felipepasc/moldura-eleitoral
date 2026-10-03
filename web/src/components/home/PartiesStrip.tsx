@@ -22,7 +22,7 @@ export function PartiesStrip() {
         <h2 id="parties-title">Partidos</h2>
         <p className="section-sub">Sigla, número e cor de cada partido.</p>
       </div>
-      <div className="marquee" tabIndex={0} aria-label="Faixa de partidos: sigla, número e cor">
+      <div className="marquee" role="region" tabIndex={0} aria-label="Faixa de partidos: sigla, número e cor">
         <div className="marquee-track">
           <ul className="marquee-list">
             {PARTIES.map((party) => (

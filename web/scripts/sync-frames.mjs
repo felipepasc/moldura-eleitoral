@@ -1,9 +1,21 @@
-import { cp, mkdir } from "node:fs/promises";
+import { cp, mkdir, readdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import sharp from "sharp";
 
 const source = fileURLToPath(new URL("../../api/assets/frames", import.meta.url));
 const target = fileURLToPath(new URL("../public/frames", import.meta.url));
+const SMALL_SIZE = 480;
 
 await mkdir(target, { recursive: true });
 await cp(source, target, { recursive: true });
-console.log("molduras copiadas para public/frames");
+
+// Versões pequenas (480 px, WebP) para a home; o /criar continua usando o PNG de 1080 px.
+const pngs = (await readdir(target)).filter((file) => file.endsWith(".png"));
+
+await Promise.all(
+  pngs.map(async (file) => {
+    await sharp(`${target}/${file}`).resize(SMALL_SIZE, SMALL_SIZE).webp({ quality: 88, alphaQuality: 100 }).toFile(`${target}/${file.replace(/\.png$/, ".webp")}`);
+  }),
+);
+
+console.log(`molduras copiadas para public/frames (${pngs.length} PNG + WebP ${SMALL_SIZE} px)`);

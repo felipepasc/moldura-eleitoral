@@ -8,11 +8,9 @@ import type { Office, StateCode } from "@moldura/common";
 import { Reveal } from "@/components/Reveal";
 import { FramedPortrait } from "@/components/home/FramedPortrait";
 import { displayName, filterCandidates, hasArt } from "@/lib/art";
+import { OFFICE_OPTIONS } from "@/lib/offices";
 
-const TABS: { office: Office; label: string }[] = [
-  { office: "presidente", label: "Presidente" },
-  { office: "governador", label: "Governador" },
-];
+const TABS = OFFICE_OPTIONS;
 
 export function CandidateGrid() {
   const [office, setOffice] = useState<Office>("presidente");
@@ -21,15 +19,19 @@ export function CandidateGrid() {
   const candidates = filterCandidates(office, state);
 
   function moveFocus(event: KeyboardEvent<HTMLButtonElement>, index: number) {
-    const keys: Record<string, number> = { ArrowRight: 1, ArrowLeft: -1 };
-    const step = keys[event.key];
+    const targets: Record<string, number> = {
+      ArrowRight: (index + 1) % TABS.length,
+      ArrowLeft: (index - 1 + TABS.length) % TABS.length,
+      Home: 0,
+      End: TABS.length - 1,
+    };
+    const next = targets[event.key];
 
-    if (step === undefined) {
+    if (next === undefined) {
       return;
     }
 
     event.preventDefault();
-    const next = (index + step + TABS.length) % TABS.length;
 
     setOffice(TABS[next].office);
     tabRefs.current[next]?.focus();
@@ -92,7 +94,7 @@ export function CandidateGrid() {
 
                 return (
                   <Reveal key={candidate.id} as="li" delay={(index % 6) * 70}>
-                    <Link className="cand-card" href={`/criar?c=${candidate.id}`} aria-label={`Usar a moldura de ${name}, número ${candidate.number}${hasArt(candidate.id) ? " (ilustração gerada por IA)" : ""}`}>
+                    <Link className="cand-card" href={`/criar?c=${candidate.id}`} aria-label={`Usar a moldura de ${name}, número ${candidate.number}${party ? `, ${party.acronym}` : ""}. Moldura pronta${hasArt(candidate.id) ? ". Ilustração gerada por IA" : ""}`}>
                       <FramedPortrait id={candidate.id} name={candidate.name} />
                       <b className="card-name">{name}</b>
                       <span className="card-meta">

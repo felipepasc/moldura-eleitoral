@@ -37,6 +37,7 @@ Os arquivos públicos `/frames/<id>.png` (servidos pelo web) são as molduras **
 - Toda ilustração mostra o selo `AiBadge` ("IA", `aria-label` "Ilustração gerada por IA") no canto superior direito, e o aviso "Ilustrações geradas por IA, estilizadas — não são fotos nem material oficial das campanhas." aparece perto do topo da home e no rodapé. O selo é só para a arte do site: nunca vai sobre a foto do usuário.
 - Exemplos com abas Presidente | Governador; em Governador há o seletor de estado (27 UFs) e "Governadores: em breve" até existirem candidatos (o filtro já usa `candidatesBy`). Em `/criar` o seletor de moldura agrupa por cargo (`<optgroup>`) e o de estado fica desabilitado.
 - Faixa de partidos: sigla, número e cor (sem logotipos); quando a cor do partido não dá contraste AA com o texto, ela é escurecida só o necessário (`swatch` em `web/src/lib/art.ts`).
+- `web/scripts/sync-frames.mjs` (predev/prebuild) copia os PNG de 1080 px e gera `public/frames/<id>.webp` de 480 px com `sharp` (devDependency do web); a home usa o WebP e o `/criar` continua com o PNG, que o canvas da prévia precisa.
 - Teste dos helpers: de dentro de `web/`, `../api/node_modules/.bin/tsx --test src/lib/*.check.ts`.
 
 ### Fonte das molduras

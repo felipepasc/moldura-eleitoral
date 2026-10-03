@@ -19,8 +19,9 @@ export function artSrc(id: string): string | null {
   return `/art/${id}.webp`;
 }
 
+// Moldura reduzida (WebP 480 px, gerada por scripts/sync-frames.mjs) para a home; o /criar usa o PNG de 1080 px.
 export function frameSrc(id: string): string {
-  return `/frames/${id}.png`;
+  return `/frames/${id}.webp`;
 }
 
 export function withArt(candidates: readonly Candidate[]): Candidate[] {

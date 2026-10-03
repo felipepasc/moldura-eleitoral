@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { test } from "node:test";
-import { CANDIDATES, PARTIES, STATES } from "@moldura/common";
-import { ART_IDS, artSrc, contrastRatio, displayName, filterCandidates, hasArt, readableText, swatch, withArt } from "./art";
+import { fileURLToPath } from "node:url";
+import { CANDIDATES, PARTIES, STATES, findCandidate } from "@moldura/common";
+import { ART_IDS, artSrc, contrastRatio, displayName, filterCandidates, frameSrc, hasArt, readableText, swatch, withArt } from "./art";
 
 test("hasArt e artSrc só reconhecem as ilustrações aprovadas", () => {
   assert.equal(hasArt("lula"), true);
@@ -56,4 +59,17 @@ test("readableText garante contraste AA para o texto da faixa de partidos", () =
 
   assert.deepEqual(swatch("#e20e28"), { background: "#e20e28", text: "#ffffff" });
   assert.deepEqual(swatch("lixo"), { background: "#475569", text: "#ffffff" });
+});
+
+test("toda ilustração de ART_IDS tem o arquivo public/art/<id>.webp e um candidato", () => {
+  const artDir = fileURLToPath(new URL("../../public/art/", import.meta.url));
+
+  for (const id of ART_IDS) {
+    assert.ok(existsSync(join(artDir, `${id}.webp`)), `falta public/art/${id}.webp`);
+    assert.ok(findCandidate(id), `candidato inexistente: ${id}`);
+  }
+});
+
+test("frameSrc aponta para a moldura reduzida em WebP", () => {
+  assert.equal(frameSrc("lula"), "/frames/lula.webp");
 });

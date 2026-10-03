@@ -150,7 +150,7 @@ function MyOrderCard({ item, onRemove }: { item: Item; onRemove: (id: string) =>
   const date = new Date(item.saved.savedAt).toLocaleDateString("pt-BR");
 
   return (
-    <div className="card">
+    <div className="card saved-card">
       {item.downloadUrl ? (
         <img src={item.downloadUrl} alt={`Moldura de ${name}`} referrerPolicy="no-referrer" style={{ width: "100%", aspectRatio: "1", borderRadius: 8 }} />
       ) : null}

@@ -92,7 +92,7 @@ export function Hero() {
                 </div>
               ))}
             </div>
-            <AiBadge size="lg" />
+            {featured.length > 0 ? <AiBadge size="lg" /> : null}
           </div>
 
           <p className="hand-note" aria-hidden="true">
@@ -112,7 +112,7 @@ export function Hero() {
                     <FramedPortrait id={candidate.id} name={candidate.name} badge="none" decorative eager={index < 2} />
                   </div>
                 ))}
-                <AiBadge size="sm" />
+                {featured.length > 0 ? <AiBadge size="sm" /> : null}
               </div>
               <span className="phone-line" />
               <span className="phone-line phone-line--short" />
