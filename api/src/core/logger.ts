@@ -3,10 +3,12 @@ import type { DestinationStream, Logger } from "pino";
 
 export type { Logger };
 
+const UUID_SEGMENT = /\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?=\/|$)/gi;
+
 export function sanitizeUrl(url: string): string {
   const [path] = url.split("?");
 
-  return path ?? url;
+  return (path ?? url).replace(UUID_SEGMENT, "/:id");
 }
 
 const STORAGE_KEY_PATTERN = /\b(?:photos|results)\/[^\s"'`,;)]*/g;

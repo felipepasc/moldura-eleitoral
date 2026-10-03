@@ -1,5 +1,6 @@
 import { Client } from "minio";
 import { env } from "@/core/env";
+import { logger } from "@/core/logger";
 
 export interface Storage {
   ensureBucket(): Promise<void>;
@@ -8,6 +9,9 @@ export interface Storage {
   remove(key: string): Promise<void>;
   signedUrl(key: string, seconds: number): Promise<string>;
 }
+
+const PHOTO_EXPIRY_DAYS = 2;
+const RESULT_EXPIRY_DAYS = 8;
 
 export function createMinioStorage(): Storage {
   const bucket = env.MINIO_BUCKET;
@@ -25,6 +29,19 @@ export function createMinioStorage(): Storage {
 
       if (!exists) {
         await client.makeBucket(bucket);
+      }
+
+      try {
+        await client.setBucketLifecycle(bucket, {
+          Rule: [
+            { ID: "expire-photos", Status: "Enabled", Filter: { Prefix: "photos/" }, Expiration: { Days: PHOTO_EXPIRY_DAYS } },
+            { ID: "expire-results", Status: "Enabled", Filter: { Prefix: "results/" }, Expiration: { Days: RESULT_EXPIRY_DAYS } },
+          ],
+        });
+      } catch (error) {
+        const code = error && typeof error === "object" && "code" in error && typeof error.code === "string" ? error.code : undefined;
+
+        logger.warn({ code }, "Não consegui configurar a expiração automática do bucket");
       }
     },
 

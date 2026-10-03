@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { PIX_EXPIRES_SECONDS, PRICE_CENTS } from "@moldura/common";
 import type { Framing } from "@moldura/common";
+import { orderRef } from "@/core/log-ref";
 import type { OrderContext } from "@/modules/orders/context";
 import { orders } from "@/modules/orders/schema";
 import type { OrderRow } from "@/modules/orders/schema";
@@ -13,7 +14,7 @@ async function removePhotoQuietly(ctx: OrderContext, orderId: string, key: strin
   try {
     await ctx.storage.remove(key);
   } catch (error) {
-    ctx.logger.warn({ err: error, orderId }, "Não consegui apagar a foto original");
+    ctx.logger.warn({ err: error, orderRef: orderRef(orderId) }, "Não consegui apagar a foto original");
   }
 }
 

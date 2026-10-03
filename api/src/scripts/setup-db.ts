@@ -7,7 +7,7 @@ async function main() {
   const dbName = url.pathname.slice(1);
 
   if (!/^[a-z0-9_]+$/.test(dbName)) {
-    throw new Error(`Nome de banco inválido: ${dbName}`);
+    throw new Error("Nome de banco inválido.");
   }
 
   const adminUrl = new URL(url);
@@ -28,6 +28,8 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(error);
+  const code = error && typeof error === "object" && "code" in error && typeof error.code === "string" ? error.code : "desconhecido";
+
+  console.error(`Falha ao preparar o banco (código: ${code}). Confira DATABASE_URL e a conexão.`);
   process.exit(1);
 });

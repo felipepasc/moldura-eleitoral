@@ -30,8 +30,12 @@ function parseJson(text: string | undefined): unknown {
   }
 }
 
-export function ordersRouter(ctx: OrderContext, ordersPerMinute: number): FastifyPluginAsync {
+export function ordersRouter(ctx: OrderContext, ordersPerMinute: number, readsPerMinute: number): FastifyPluginAsync {
   return async (app) => {
+    app.addHook("onSend", async (_req, reply) => {
+      reply.header("Cache-Control", "no-store");
+    });
+
     app.post("/", { config: { rateLimit: { max: ordersPerMinute, timeWindow: "1 minute" } } }, async (req, reply) => {
       const file = await req.file();
 
@@ -72,7 +76,7 @@ export function ordersRouter(ctx: OrderContext, ordersPerMinute: number): Fastif
       }
     });
 
-    app.get("/:id", async (req, reply) => {
+    app.get("/:id", { config: { rateLimit: { max: readsPerMinute, timeWindow: "1 minute" } } }, async (req, reply) => {
       const params = ParamsSchema.safeParse(req.params);
 
       if (!params.success) {

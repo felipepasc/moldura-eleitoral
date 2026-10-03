@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Writable } from "node:stream";
-import { createLogger } from "@/core/logger";
+import { createLogger, sanitizeUrl } from "@/core/logger";
+import { orderRef } from "@/core/log-ref";
 
 function capture() {
   const lines: string[] = [];
@@ -44,4 +45,17 @@ test("erro comum mantém a mensagem mas troca chaves do storage por [chave]", ()
   assert.ok(text.includes("[chave]"));
   assert.equal(text.includes("photos/abc"), false);
   assert.equal(text.includes("results/abc"), false);
+});
+
+test("sanitizeUrl tira a query e troca uuid por :id", () => {
+  assert.equal(sanitizeUrl("/orders/3f2b8c1e-5a4d-4c3b-9e8f-1a2b3c4d5e6f?x=1"), "/orders/:id");
+  assert.equal(sanitizeUrl("/webhooks/abacatepay?webhookSecret=abc"), "/webhooks/abacatepay");
+});
+
+test("orderRef é curto, estável e não revela o id", () => {
+  const id = "3f2b8c1e-5a4d-4c3b-9e8f-1a2b3c4d5e6f";
+
+  assert.match(orderRef(id), /^[0-9a-f]{8}$/);
+  assert.equal(orderRef(id), orderRef(id));
+  assert.equal(id.includes(orderRef(id)), false);
 });

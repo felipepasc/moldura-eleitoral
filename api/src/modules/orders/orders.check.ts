@@ -338,3 +338,60 @@ test("rota inexistente devolve 404 genérico sem eco da URL", async () => {
   assert.equal(res.statusCode, 404);
   assert.deepEqual(res.json(), { error: "Não encontrado." });
 });
+
+test("GET /orders/:id respeita o limite por IP", async () => {
+  const limited = await createTestApp({ orderReadsPerMinute: 2 });
+
+  try {
+    const url = "/orders/3f2b8c1e-5a4d-4c3b-9e8f-1a2b3c4d5e6f";
+
+    await limited.app.inject({ method: "GET", url });
+    await limited.app.inject({ method: "GET", url });
+    const blocked = await limited.app.inject({ method: "GET", url });
+
+    assert.equal(blocked.statusCode, 429);
+    assert.deepEqual(blocked.json(), { error: "Muitas tentativas. Aguarde um instante e tente de novo." });
+  } finally {
+    await limited.close();
+  }
+});
+
+test("POST /orders e GET /orders/:id respondem com Cache-Control: no-store", async () => {
+  const created = await postOrder({ candidateId: "lula", framing: FRAMING }, { data: await photo(), type: "image/jpeg" });
+  const read = await t.app.inject({ method: "GET", url: `/orders/${created.json().id}` });
+  const missing = await t.app.inject({ method: "GET", url: "/orders/3f2b8c1e-5a4d-4c3b-9e8f-1a2b3c4d5e6f" });
+
+  assert.equal(created.headers["cache-control"], "no-store");
+  assert.equal(read.headers["cache-control"], "no-store");
+  assert.equal(missing.headers["cache-control"], "no-store");
+});
+
+test("logs de um fluxo completo não contêm o uuid do pedido nem chaves do storage", async () => {
+  let text = "";
+  const stream = new Writable({
+    write(chunk, _encoding, callback) {
+      text += chunk.toString();
+      callback();
+    },
+  });
+  const logged = await createTestApp({ logStream: stream });
+
+  try {
+    const file = { data: await photo(), type: "image/jpeg" };
+    const res = await logged.app.inject({ method: "POST", url: "/orders", ...(await multipart({ candidateId: "lula", framing: FRAMING }, file)) });
+    const id = res.json().id as string;
+    const pixId = logged.gateway.created[logged.gateway.created.length - 1];
+
+    logged.gateway.statuses.set(pixId, "PAID");
+    await logged.app.inject({ method: "GET", url: `/orders/${id}` });
+    logged.gateway.failCheck = true;
+    await logged.app.inject({ method: "GET", url: `/orders/${id}?x=1` });
+
+    assert.ok(text.length > 0);
+    assert.equal(text.includes(id), false);
+    assert.equal(text.includes("photos/"), false);
+    assert.equal(text.includes("results/"), false);
+  } finally {
+    await logged.close();
+  }
+});

@@ -115,20 +115,114 @@ test("evento desconhecido e Pix desconhecido respondem 200 sem mexer em nada", a
   assert.equal(await statusOf(orderId), "pending");
 });
 
-test("a AbacatePay fora do ar no webhook responde 200 e o polling resolve depois", async () => {
+test("a AbacatePay fora do ar no webhook devolve 503, libera o evento e o reenvio funciona", async () => {
   const { orderId, pixId } = await createPendingOrder();
   t.gateway.statuses.set(pixId, "PAID");
   t.gateway.failCheck = true;
+  const body = { event: "billing.paid", data: { id: pixId } };
 
-  const res = await webhook({ event: "billing.paid", data: { id: pixId } });
+  const res = await webhook(body);
 
-  assert.equal(res.statusCode, 200);
+  assert.equal(res.statusCode, 503);
+  assert.deepEqual(res.json(), { error: "Tente novamente." });
+  assert.equal((await t.db.select().from(webhookEvents)).length, 0);
   assert.equal(await statusOf(orderId), "pending");
 
   t.gateway.failCheck = false;
+  const retry = await webhook(body);
+
+  assert.equal(retry.statusCode, 200);
+  assert.equal(await statusOf(orderId), "paid");
+});
+
+test("webhook responde no-store e respeita o rate limit", async () => {
+  await t.close();
+  t = await createTestApp({ webhookPerMinute: 2, logStream: new Writable({ write: (_c, _e, cb) => cb() }) });
+
+  const first = await webhook({ event: "x.y", id: "1" });
+  await webhook({ event: "x.y", id: "2" });
+  const third = await webhook({ event: "x.y", id: "3" });
+
+  assert.equal(first.headers["cache-control"], "no-store");
+  assert.equal(third.statusCode, 429);
+});
+
+test("eventos sem id no topo não se confundem; payload idêntico repetido é deduplicado", async () => {
+  const first = { event: "x.y", data: { id: "mesmo", valor: 1 } };
+  const second = { event: "x.y", data: { id: "mesmo", valor: 2 } };
+
+  await webhook(first);
+  const other = await webhook(second);
+  const repeated = await webhook(first);
+
+  assert.equal(other.json().duplicate, undefined);
+  assert.equal(repeated.json().duplicate, true);
+  assert.equal((await t.db.select().from(webhookEvents)).length, 2);
+});
+
+test("com id no topo o evento é event:id", async () => {
+  await webhook({ event: "x.y", id: "abc", data: {} });
+
+  const [row] = await t.db.select().from(webhookEvents);
+
+  assert.equal(row.eventId, "x.y:abc");
+});
+
+test("a tabela de eventos não guarda o corpo", async () => {
+  await webhook({ event: "x.y", id: "abc", data: { cpf: "123.456.789-00" } });
+
+  const [row] = await t.db.select().from(webhookEvents);
+
+  assert.equal(JSON.stringify(row).includes("123.456"), false);
+  assert.equal("payload" in row, false);
+});
+
+test("corpo acima de 256 KB devolve 413 e não grava nada", async () => {
+  const res = await t.app.inject({
+    method: "POST",
+    url: `/webhooks/abacatepay?webhookSecret=${WEBHOOK_SECRET}`,
+    payload: { event: "x.y", data: { lixo: "a".repeat(300 * 1024) } },
+  });
+
+  assert.equal(res.statusCode, 413);
+  assert.equal((await t.db.select().from(webhookEvents)).length, 0);
+});
+
+test("payload com dois pixIds sincroniza os dois pedidos", async () => {
+  const a = await createPendingOrder();
+  const b = await createPendingOrder();
+  t.gateway.statuses.set(a.pixId, "PAID");
+  t.gateway.statuses.set(b.pixId, "PAID");
+
+  const res = await webhook({ event: "transparent.completed", data: { items: [{ id: a.pixId }, { id: b.pixId }] } });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(await statusOf(a.orderId), "paid");
+  assert.equal(await statusOf(b.orderId), "paid");
+});
+
+test("o alias ?secret= não é aceito", async () => {
+  const res = await t.app.inject({
+    method: "POST",
+    url: `/webhooks/abacatepay?secret=${WEBHOOK_SECRET}`,
+    payload: { event: "x.y", id: "1" },
+  });
+
+  assert.equal(res.statusCode, 401);
+  assert.deepEqual(res.json(), { error: "invalid_secret" });
+});
+
+test("logs não contêm o uuid do pedido nem chaves do storage", async () => {
+  const { orderId, pixId } = await createPendingOrder();
+  t.gateway.statuses.set(pixId, "PAID");
+
+  await webhook({ event: "transparent.completed", data: { id: pixId } });
   await t.app.inject({ method: "GET", url: `/orders/${orderId}` });
 
-  assert.equal(await statusOf(orderId), "paid");
+  assert.ok(logs.length > 0);
+  assert.equal(logs.includes(orderId), false);
+  assert.equal(logs.includes("photos/"), false);
+  assert.equal(logs.includes("results/"), false);
 });
 
 test("o segredo do webhook não aparece nos logs", async () => {
@@ -152,7 +246,7 @@ test("o segredo não aparece nos logs nem nas respostas quando a reconsulta falh
   const invalid = await webhook({ semEvento: true });
   const unauthorized = await webhook({ event: "x" }, "errado");
 
-  assert.equal(failed.statusCode, 200);
+  assert.equal(failed.statusCode, 503);
   assert.equal(invalid.statusCode, 400);
   assert.equal(unauthorized.body.includes(WEBHOOK_SECRET), false);
   assert.ok(logs.length > 0, "o teste precisa capturar logs");

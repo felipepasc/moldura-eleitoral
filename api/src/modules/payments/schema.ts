@@ -1,8 +1,7 @@
-import { jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
 export const webhookEvents = pgTable("webhook_events", {
   eventId: text("event_id").primaryKey(),
   event: text("event").notNull(),
-  payload: jsonb("payload").notNull(),
   receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
 });

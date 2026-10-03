@@ -1,8 +1,9 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import type { FastifyPluginAsync } from "fastify";
-import { inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { badReq, ok, unauthorized } from "@/core/http-fastify";
+import { orderRef } from "@/core/log-ref";
 import type { OrderContext } from "@/modules/orders/context";
 import { orders } from "@/modules/orders/schema";
 import { syncOrder } from "@/modules/orders/services/sync-order";
@@ -10,10 +11,11 @@ import { webhookEvents } from "@/modules/payments/schema";
 
 const PAID_EVENTS = new Set(["transparent.completed", "billing.paid", "checkout.completed"]);
 const MAX_DEPTH = 6;
+const MAX_IDS = 20;
+const BODY_LIMIT_BYTES = 256 * 1024;
 
 const QuerySchema = z.object({
   webhookSecret: z.string().optional(),
-  secret: z.string().optional(),
 });
 
 const BodySchema = z.object({
@@ -30,7 +32,7 @@ function safeEqual(a: string, b: string): boolean {
 }
 
 function collectIds(value: unknown, found: string[] = [], depth = 0): string[] {
-  if (depth > MAX_DEPTH || !value || typeof value !== "object") {
+  if (found.length >= MAX_IDS || depth > MAX_DEPTH || !value || typeof value !== "object") {
     return found;
   }
 
@@ -43,6 +45,10 @@ function collectIds(value: unknown, found: string[] = [], depth = 0): string[] {
   }
 
   for (const [key, child] of Object.entries(value)) {
+    if (found.length >= MAX_IDS) {
+      break;
+    }
+
     if ((key === "id" || key === "externalId") && typeof child === "string") {
       found.push(child);
     } else {
@@ -53,11 +59,27 @@ function collectIds(value: unknown, found: string[] = [], depth = 0): string[] {
   return found;
 }
 
-export function webhookRouter(ctx: OrderContext, secret: string): FastifyPluginAsync {
+function eventIdOf(event: string, id: string | undefined, rawBody: unknown): string {
+  if (id) {
+    return `${event}:${id}`;
+  }
+
+  const digest = createHash("sha256").update(JSON.stringify(rawBody)).digest("hex").slice(0, 32);
+
+  return `${event}:${digest}`;
+}
+
+export function webhookRouter(ctx: OrderContext, secret: string, perMinute: number): FastifyPluginAsync {
   return async (app) => {
-    app.post("/abacatepay", async (req, reply) => {
+    app.addHook("onSend", async (_req, reply) => {
+      reply.header("Cache-Control", "no-store");
+    });
+
+    const options = { bodyLimit: BODY_LIMIT_BYTES, config: { rateLimit: { max: perMinute, timeWindow: "1 minute" } } };
+
+    app.post("/abacatepay", options, async (req, reply) => {
       const query = QuerySchema.safeParse(req.query);
-      const provided = query.success ? (query.data.webhookSecret ?? query.data.secret ?? "") : "";
+      const provided = query.success ? (query.data.webhookSecret ?? "") : "";
 
       if (!safeEqual(provided, secret)) {
         return unauthorized(reply, "invalid_secret");
@@ -70,11 +92,11 @@ export function webhookRouter(ctx: OrderContext, secret: string): FastifyPluginA
       }
 
       const ids = collectIds(req.body);
-      const eventId = `${body.data.event}:${body.data.id ?? ids[0] ?? "sem-id"}`;
+      const eventId = eventIdOf(body.data.event, body.data.id, req.body);
 
       const inserted = await ctx.db
         .insert(webhookEvents)
-        .values({ eventId, event: body.data.event, payload: req.body })
+        .values({ eventId, event: body.data.event })
         .onConflictDoNothing()
         .returning({ eventId: webhookEvents.eventId });
 
@@ -86,27 +108,33 @@ export function webhookRouter(ctx: OrderContext, secret: string): FastifyPluginA
         return ok(reply, { received: true, processed: false });
       }
 
-      const [order] =
+      const matched =
         ids.length > 0
           ? await ctx.db
-              .select()
+              .select({ id: orders.id })
               .from(orders)
               .where(inArray(orders.pixId, ids))
-              .limit(1)
+              .limit(MAX_IDS)
           : [];
 
-      if (!order) {
+      if (matched.length === 0) {
         ctx.logger.warn({ event: body.data.event }, "Webhook de pagamento sem pedido correspondente");
 
         return ok(reply, { received: true, processed: false });
       }
 
       try {
-        await syncOrder(ctx, order.id);
+        for (const order of matched) {
+          await syncOrder(ctx, order.id);
+        }
       } catch (error) {
-        ctx.logger.error({ err: error, orderId: order.id }, "Falha ao sincronizar o pedido pelo webhook");
+        ctx.logger.error({ err: error, event: body.data.event, orderRefs: matched.map((order) => orderRef(order.id)) }, "Falha ao sincronizar o pedido pelo webhook");
 
-        return ok(reply, { received: true, processed: false });
+        await ctx.db
+          .delete(webhookEvents)
+          .where(eq(webhookEvents.eventId, eventId));
+
+        return reply.code(503).send({ error: "Tente novamente." });
       }
 
       return ok(reply, { received: true, processed: true });

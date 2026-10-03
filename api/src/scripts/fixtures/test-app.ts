@@ -16,6 +16,8 @@ export type TestAppOptions = {
   ordersPerMinute?: number;
   framesDir?: string;
   logStream?: DestinationStream;
+  orderReadsPerMinute?: number;
+  webhookPerMinute?: number;
 };
 
 export async function createTestApp(options: TestAppOptions = {}) {
@@ -41,6 +43,8 @@ export async function createTestApp(options: TestAppOptions = {}) {
     webOrigin: "http://localhost:6610",
     trustProxy: false,
     ordersPerMinute: options.ordersPerMinute ?? 1000,
+    orderReadsPerMinute: options.orderReadsPerMinute ?? 1000,
+    webhookPerMinute: options.webhookPerMinute ?? 1000,
   });
 
   return {

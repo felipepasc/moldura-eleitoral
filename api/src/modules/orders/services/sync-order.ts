@@ -1,6 +1,7 @@
 import path from "node:path";
 import { and, eq, ne } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
+import { orderRef } from "@/core/log-ref";
 import type { OrderContext } from "@/modules/orders/context";
 import { orders } from "@/modules/orders/schema";
 import type { OrderRow } from "@/modules/orders/schema";
@@ -34,7 +35,7 @@ async function removeQuietly(ctx: OrderContext, orderId: string, key: string): P
   try {
     await ctx.storage.remove(key);
   } catch (error) {
-    ctx.logger.warn({ err: error, orderId }, "Não consegui apagar a foto original");
+    ctx.logger.warn({ err: error, orderRef: orderRef(orderId) }, "Não consegui apagar a foto original");
   }
 }
 
@@ -60,7 +61,7 @@ export async function confirmOrder(ctx: OrderContext, row: OrderRow): Promise<Or
 
     return paid ?? row;
   } catch (error) {
-    ctx.logger.error({ err: error, orderId: row.id }, "Falha ao montar a imagem do pedido");
+    ctx.logger.error({ err: error, orderRef: orderRef(row.id) }, "Falha ao montar a imagem do pedido");
 
     const failed = await updateOrder(ctx, row.id, { status: "paid_failed" }, ne(orders.status, "paid"));
 
@@ -104,7 +105,7 @@ export async function refreshOrder(ctx: OrderContext, id: string): Promise<Order
   try {
     return await syncOrder(ctx, id);
   } catch (error) {
-    ctx.logger.warn({ err: error, orderId: id }, "Não consegui consultar a AbacatePay; usando o estado local");
+    ctx.logger.warn({ err: error, orderRef: orderRef(id) }, "Não consegui consultar a AbacatePay; usando o estado local");
 
     return findOrder(ctx, id);
   }
