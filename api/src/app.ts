@@ -4,6 +4,7 @@ import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import rateLimit from "@fastify/rate-limit";
 import { PHOTO_MAX_BYTES } from "@moldura/common";
+import { trustHops } from "@/core/trust-proxy";
 import { notFound, serverErr, tooLarge } from "@/core/http-fastify";
 import type { OrderContext } from "@/modules/orders/context";
 import { ordersRouter } from "@/modules/orders/routes/orders.router";
@@ -21,15 +22,6 @@ export type AppDeps = {
   orderReadsPerMinute?: number;
   webhookPerMinute?: number;
 };
-
-// Fastify 5 trata trustProxy numérico como "não confiar em ninguém"; por isso contamos os saltos aqui.
-function trustHops(hops: number): boolean | ((address: string, index: number) => boolean) {
-  if (hops <= 0) {
-    return false;
-  }
-
-  return (_address, index) => index < hops;
-}
 
 export async function buildApp(deps: AppDeps) {
   const app = Fastify({

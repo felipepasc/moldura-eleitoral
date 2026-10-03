@@ -282,5 +282,6 @@ test("falha ao liberar o evento no 503 ainda devolve 503 e loga só o erro", asy
 
   assert.equal(res.statusCode, 503);
   assert.deepEqual(res.json(), { error: "Tente novamente." });
+  assert.ok(logs.includes("Não consegui liberar o evento do webhook"));
   assert.ok(!logs.includes("segredo.jpg"));
 });

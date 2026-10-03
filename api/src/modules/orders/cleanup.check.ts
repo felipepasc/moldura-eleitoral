@@ -2,9 +2,10 @@ import { afterEach, beforeEach, test } from "node:test";
 import { Writable } from "node:stream";
 import assert from "node:assert/strict";
 import { eq } from "drizzle-orm";
+import sharp from "sharp";
 import { orderRef } from "@/core/log-ref";
 import { orders } from "@/modules/orders/schema";
-import { cleanupOrders } from "@/modules/orders/services/cleanup";
+import { cleanupOrders, deleteGuarded } from "@/modules/orders/services/cleanup";
 import { webhookEvents } from "@/modules/payments/schema";
 import { createTestApp } from "@/scripts/fixtures/test-app";
 import type { TestApp } from "@/scripts/fixtures/test-app";
@@ -116,11 +117,11 @@ test("pedido pago recente com photoKey sobrando apaga a foto e zera photoKey", a
   assert.equal(t.storage.files.has("results/keep.png"), true);
 });
 
-test("paid_failed: com menos de 14 dias não mexe; com mais apaga tudo e avisa o operador", async () => {
+test("paid_failed: com menos de 3 dias não mexe; com mais apaga e avisa o operador depois", async () => {
   await t.storage.put("photos/f1.jpg", Buffer.from("x"), "image/jpeg");
-  const young = await insertOrder({ pixId: "p4", status: "paid_failed", photoKey: "photos/f1.jpg", createdAt: new Date(clock - 10 * DAY) });
+  const young = await insertOrder({ pixId: "p4", status: "paid_failed", photoKey: "photos/f1.jpg", createdAt: new Date(clock - 2 * DAY) });
   await t.storage.put("photos/f2.jpg", Buffer.from("x"), "image/jpeg");
-  const old = await insertOrder({ pixId: "p4b", status: "paid_failed", photoKey: "photos/f2.jpg", createdAt: new Date(clock - 15 * DAY) });
+  const old = await insertOrder({ pixId: "p4b", status: "paid_failed", photoKey: "photos/f2.jpg", createdAt: new Date(clock - 4 * DAY) });
 
   const result = await cleanupOrders(t.ctx);
 
@@ -129,9 +130,101 @@ test("paid_failed: com menos de 14 dias não mexe; com mais apaga tudo e avisa o
   assert.equal(t.storage.files.has("photos/f1.jpg"), true);
   assert.equal(await exists(old.id), false);
   assert.equal(t.storage.files.has("photos/f2.jpg"), false);
-  assert.ok(logs.includes('"level":40'));
+  assert.ok(logs.includes("Pedido pago sem imagem, apagado"));
   assert.ok(logs.includes(orderRef(old.id)));
   assert.ok(!logs.includes(old.id));
+});
+
+test("falha ao remover arquivo de pedido pago antigo mantém a linha; na próxima rodada apaga", async () => {
+  await t.storage.put("results/r.png", Buffer.from("x"), "image/png");
+  const paid = await insertOrder({ pixId: "p7", status: "paid", resultKey: "results/r.png", paidAt: new Date(clock - 8 * DAY) });
+  const originalRemove = t.storage.remove;
+  t.storage.remove = async () => {
+    throw new Error("storage fora do ar");
+  };
+
+  const first = await cleanupOrders(t.ctx);
+
+  assert.equal(first.removed, 0);
+  assert.equal(await exists(paid.id), true);
+  assert.ok(logs.includes(orderRef(paid.id)));
+  assert.ok(!logs.includes("results/"));
+
+  t.storage.remove = originalRemove;
+  const second = await cleanupOrders(t.ctx);
+
+  assert.equal(second.removed, 1);
+  assert.equal(await exists(paid.id), false);
+  assert.equal(t.storage.files.has("results/r.png"), false);
+});
+
+test("pedido pago com paidAt nulo e createdAt antigo também é apagado", async () => {
+  const paid = await insertOrder({ pixId: "p8", status: "paid", paidAt: null, createdAt: new Date(clock - 9 * DAY) });
+
+  const result = await cleanupOrders(t.ctx);
+
+  assert.equal(result.removed, 1);
+  assert.equal(await exists(paid.id), false);
+});
+
+test("pedido não pago que a AbacatePay diz estar PAGO na limpeza não é apagado e vira paid", async () => {
+  const photo = await sharp({ create: { width: 300, height: 300, channels: 3, background: { r: 10, g: 200, b: 10 } } })
+    .jpeg()
+    .toBuffer();
+  await t.storage.put("photos/late.jpg", photo, "image/jpeg");
+  const late = await insertOrder({ pixId: "p9", photoKey: "photos/late.jpg", createdAt: new Date(clock - 30 * HOUR) });
+  t.gateway.statuses.set("p9", "PAID");
+
+  const result = await cleanupOrders(t.ctx);
+
+  const [row] = await t.db.select().from(orders).where(eq(orders.id, late.id));
+  assert.equal(result.removed, 0);
+  assert.equal(row.status, "paid");
+  assert.ok(row.resultKey);
+});
+
+test("gateway fora do ar: pedido não pago antigo é pulado e não apagado", async () => {
+  await t.storage.put("photos/skip.jpg", Buffer.from("x"), "image/jpeg");
+  const old = await insertOrder({ pixId: "p10", photoKey: "photos/skip.jpg", createdAt: new Date(clock - 30 * HOUR) });
+  t.gateway.failCheck = true;
+
+  const result = await cleanupOrders(t.ctx);
+
+  assert.equal(result.removed, 0);
+  assert.equal(await exists(old.id), true);
+  assert.equal(t.storage.files.has("photos/skip.jpg"), true);
+  assert.ok(logs.includes(orderRef(old.id)));
+});
+
+test("a exclusão protegida não apaga linha cujo status mudou para paid", async () => {
+  await t.storage.put("photos/race.jpg", Buffer.from("x"), "image/jpeg");
+  const row = await insertOrder({ pixId: "p11", photoKey: "photos/race.jpg", createdAt: new Date(clock - 30 * HOUR) });
+
+  await t.db
+    .update(orders)
+    .set({ status: "paid", paidAt: new Date(clock) })
+    .where(eq(orders.id, row.id));
+
+  const deleted = await deleteGuarded(t.ctx, row.id, ["pending", "expired"], new Date(clock - 24 * HOUR));
+
+  assert.equal(deleted, null);
+  assert.equal(await exists(row.id), true);
+  assert.equal(t.storage.files.has("photos/race.jpg"), true);
+});
+
+test("falha ao remover a foto depois do delete avisa foto órfã sem chaves", async () => {
+  await t.storage.put("photos/orph.jpg", Buffer.from("x"), "image/jpeg");
+  const old = await insertOrder({ pixId: "p12", photoKey: "photos/orph.jpg", createdAt: new Date(clock - 30 * HOUR) });
+  t.storage.remove = async (key) => {
+    throw new Error(`falhou ${key}`);
+  };
+
+  const result = await cleanupOrders(t.ctx);
+
+  assert.equal(result.removed, 1);
+  assert.equal(await exists(old.id), false);
+  assert.ok(logs.includes("Foto órfã"));
+  assert.ok(!logs.includes("orph.jpg"));
 });
 
 test("apaga webhook_events com mais de 30 dias e mantém os recentes", async () => {

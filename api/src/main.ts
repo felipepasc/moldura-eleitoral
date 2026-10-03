@@ -46,11 +46,26 @@ async function main() {
     void runCleanup();
   }, CLEANUP_INTERVAL_MS);
 
+  let shuttingDown = false;
+
   async function shutdown() {
-    clearInterval(timer);
-    await app.close();
-    await sql.end();
-    process.exit(0);
+    if (shuttingDown) {
+      return;
+    }
+
+    shuttingDown = true;
+    let exitCode = 0;
+
+    try {
+      clearInterval(timer);
+      await app.close();
+      await sql.end();
+    } catch (error) {
+      exitCode = 1;
+      logger.error({ err: error }, "Falha ao encerrar");
+    } finally {
+      process.exit(exitCode);
+    }
   }
 
   process.on("SIGINT", () => {
@@ -61,6 +76,8 @@ async function main() {
   });
 
   await app.listen({ port: env.PORT, host: "0.0.0.0" });
+
+  void runCleanup();
 }
 
 main().catch((error) => {
