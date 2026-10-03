@@ -112,17 +112,21 @@ export function MyOrders() {
 
   return (
     <div aria-live="polite">
-      <p className="hint">{NOTICE}</p>
-      {items.length > 0 ? <p className="hint">{EXPIRY_HINT}</p> : null}
+      <div className="notice">
+        <p>{NOTICE}</p>
+        {items.length > 0 ? <p>{EXPIRY_HINT}</p> : null}
+      </div>
       {rateLimited || someFailed ? <p className="error" role="alert">{rateLimited ? RATE_LIMIT_MESSAGE : LOAD_FAILED_MESSAGE}</p> : null}
       {items.length === 0 ? (
-        <section className="panel" style={{ gridTemplateColumns: "1fr" }}>
-          <b>Você ainda não tem molduras guardadas neste aparelho.</b>
+        <section className="status-card">
+          <img className="status-frame" src="/frames/neutral.webp" alt="" width={96} height={96} />
+          <h2>Nenhuma moldura guardada neste aparelho</h2>
+          <p>Depois do pagamento, a foto pronta aparece aqui por 7 dias.</p>
           <div className="row"><Link className="btn" href="/criar">Criar uma moldura</Link></div>
         </section>
       ) : (
         <>
-          <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))" }}>
+          <div className="grid saved-grid">
             {items.map((item) => (
               <MyOrderCard key={item.saved.id} item={item} onRemove={removeOne} />
             ))}

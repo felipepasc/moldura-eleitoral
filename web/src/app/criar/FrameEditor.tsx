@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { KeyboardEvent, PointerEvent } from "react";
+import type { DragEvent, KeyboardEvent, PointerEvent } from "react";
 import { useRouter } from "next/navigation";
 import { CANDIDATES, FRAME_SIZE, MAX_ZOOM, PHOTO_MAX_BYTES, PHOTO_MIME_TYPES, PRICE_CENTS, candidatesBy } from "@moldura/common";
 import type { Framing } from "@moldura/common";
@@ -33,6 +33,7 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
   const [framing, setFraming] = useState<Framing>({ zoom: 1, offsetX: 0, offsetY: 0 });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [dragging, setDragging] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -190,78 +191,211 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
     }
   }
 
+  const photoReady = image !== null;
+  const ready = canSubmit({ candidateId, hasFile: file !== null, hasImage: photoReady, frameReady, busy });
+  const zoomPercent = Math.round(((framing.zoom - 1) / (MAX_ZOOM - 1)) * 100);
+
+  function dropFile(event: DragEvent<HTMLLabelElement>) {
+    event.preventDefault();
+    setDragging(false);
+
+    const dropped = event.dataTransfer.files?.[0];
+
+    if (dropped) {
+      pickFile(dropped);
+    }
+  }
+
+  function changeZoom(delta: number) {
+    setFraming((current) => ({ ...current, zoom: Math.min(MAX_ZOOM, Math.max(1, Math.round((current.zoom + delta) * 100) / 100)) }));
+  }
+
+  let payHint = "Escolha sua foto e a moldura para continuar.";
+
+  if (ready) {
+    payHint = "Você paga por Pix e baixa a foto em seguida.";
+  } else if (photoReady) {
+    payHint = "Agora escolha a moldura para continuar.";
+  } else if (candidateId) {
+    payHint = "Agora escolha a sua foto para continuar.";
+  }
+
   return (
-    <section className="panel">
-      <canvas
-        ref={canvasRef}
-        className="preview"
-        width={FRAME_SIZE}
-        height={FRAME_SIZE}
-        onPointerDown={startDrag}
-        onPointerMove={moveDrag}
-        onPointerUp={endDrag}
-        onPointerCancel={endDrag}
-        onLostPointerCapture={endDrag}
-        onKeyDown={moveByKey}
-        role="img"
-        tabIndex={0}
-        aria-label={candidateName ? `Prévia da sua foto com a moldura de ${candidateName}` : "Prévia da sua foto com a moldura de exemplo; escolha uma moldura"}
-      />
+    <section className="editor">
+      <div className="editor-preview">
+        <div className="preview-card">
+          <canvas
+            ref={canvasRef}
+            className="preview"
+            width={FRAME_SIZE}
+            height={FRAME_SIZE}
+            onPointerDown={startDrag}
+            onPointerMove={moveDrag}
+            onPointerUp={endDrag}
+            onPointerCancel={endDrag}
+            onLostPointerCapture={endDrag}
+            onKeyDown={moveByKey}
+            role="img"
+            tabIndex={0}
+            aria-label={candidateName ? `Prévia da sua foto com a moldura de ${candidateName}` : "Prévia da sua foto com a moldura de exemplo; escolha uma moldura"}
+          />
+          <p className="preview-tip">{photoReady ? "Arraste a foto para posicionar, ou use as setas do teclado." : "Sua prévia aparece aqui assim que você escolher a foto."}</p>
+        </div>
+        <p className="preview-note">
+          <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+            <path d="M10 2l6 2.5v4.6c0 4-2.6 7-6 8.9-3.4-1.9-6-4.9-6-8.9V4.5z" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+            <path d="M7.2 10l2 2 3.8-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          A prévia é montada só no seu navegador e leva marca d&apos;água.
+        </p>
+      </div>
 
-      <div>
-        <label htmlFor="photo">1. Sua foto</label>
-        <input ref={inputRef} id="photo" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => pickFile(event.target.files?.[0] ?? null)} />
+      <ol className="editor-steps">
+        <li className={`editor-step${photoReady ? " is-done" : ""}`}>
+          <div className="editor-step-head">
+            <span className="editor-step-number" aria-hidden="true">{photoReady ? "✓" : "1"}</span>
+            <h2 className="editor-step-title">Sua foto</h2>
+          </div>
+          <input
+            ref={inputRef}
+            id="photo"
+            className="visually-hidden"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={(event) => {
+              const chosen = event.target.files?.[0];
 
-        <label htmlFor="candidate">2. Moldura</label>
-        <select id="candidate" value={candidateId} onChange={(event) => setCandidateId(event.target.value)}>
-          <option value="" disabled>
-            Escolha uma moldura…
-          </option>
-          {OFFICE_OPTIONS.map((office) => {
-            const group = sortCandidatesAlphabetically(candidatesBy(office.office));
+              if (chosen) {
+                pickFile(chosen);
+              }
+            }}
+          />
+          <label
+            htmlFor="photo"
+            className={`dropzone${dragging ? " is-dragging" : ""}${photoReady ? " has-photo" : ""}`}
+            onDragOver={(event) => {
+              event.preventDefault();
+              setDragging(true);
+            }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={dropFile}
+          >
+            {photoReady && image ? (
+              <>
+                <img className="dropzone-thumb" src={image.src} alt="" />
+                <span className="dropzone-text">
+                  <b>{file?.name ?? "Foto escolhida"}</b>
+                  <span>Toque para trocar a foto</span>
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="dropzone-icon" aria-hidden="true">
+                  <svg viewBox="0 0 48 48" focusable="false">
+                    <rect x="5" y="9" width="30" height="26" rx="4" fill="none" stroke="currentColor" strokeWidth="2.6" />
+                    <circle cx="26" cy="17" r="3" fill="none" stroke="currentColor" strokeWidth="2.4" />
+                    <path d="M5 31l9-9 8 8" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinejoin="round" />
+                    <path d="M38 44V26M31.5 32l6.5-6.5 6.5 6.5" fill="none" stroke="#1459d9" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </span>
+                <span className="dropzone-text">
+                  <b>Escolher foto</b>
+                  <span className="dropzone-desktop">ou arraste a imagem para cá</span>
+                  <small>JPG, PNG ou WebP, até 8 MB</small>
+                </span>
+              </>
+            )}
+          </label>
+        </li>
 
-            if (group.length === 0) {
-              return null;
-            }
+        <li className={`editor-step${candidateId ? " is-done" : ""}`}>
+          <div className="editor-step-head">
+            <span className="editor-step-number" aria-hidden="true">{candidateId ? "✓" : "2"}</span>
+            <h2 className="editor-step-title">
+              <label htmlFor="candidate">Moldura</label>
+            </h2>
+          </div>
+          <div className="frame-picker">
+            <img className="frame-picker-thumb" src={candidateId ? `/frames/${candidateId}.webp` : "/frames/neutral.webp"} alt="" width={56} height={56} />
+            <select id="candidate" value={candidateId} onChange={(event) => setCandidateId(event.target.value)}>
+              <option value="" disabled>
+                Escolha uma moldura…
+              </option>
+              {OFFICE_OPTIONS.map((office) => {
+                const group = sortCandidatesAlphabetically(candidatesBy(office.office));
 
-            return (
-              <optgroup key={office.office} label={office.label}>
-                {group.map((candidate) => (
-                  <option key={candidate.id} value={candidate.id}>
-                    {candidate.name} • {candidate.number}
-                  </option>
-                ))}
-              </optgroup>
-            );
-          })}
-        </select>
+                if (group.length === 0) {
+                  return null;
+                }
 
-        <label htmlFor="governor-state">Estado (governador)</label>
-        <select id="governor-state" disabled defaultValue="" aria-describedby="governor-soon">
-          <option value="">Governadores: em breve</option>
-        </select>
-        <p id="governor-soon" className="hint">Por enquanto, só as molduras de presidente.</p>
+                return (
+                  <optgroup key={office.office} label={office.label}>
+                    {group.map((candidate) => (
+                      <option key={candidate.id} value={candidate.id}>
+                        {candidate.name} • {candidate.number}
+                      </option>
+                    ))}
+                  </optgroup>
+                );
+              })}
+            </select>
+          </div>
+          <div className="governor-row">
+            <label htmlFor="governor-state">Estado (governador)</label>
+            <select id="governor-state" disabled defaultValue="" aria-describedby="governor-soon">
+              <option value="">Governadores: em breve</option>
+            </select>
+            <p id="governor-soon" className="hint">Por enquanto, só as molduras de presidente.</p>
+          </div>
+        </li>
 
-        <label htmlFor="zoom">3. Ajuste (arraste a foto e use o zoom)</label>
-        <input
-          id="zoom"
-          type="range"
-          min={1}
-          max={MAX_ZOOM}
-          step={0.01}
-          value={framing.zoom}
-          onChange={(event) => setFraming((current) => ({ ...current, zoom: Number(event.target.value) }))}
-        />
+        <li className="editor-step">
+          <div className="editor-step-head">
+            <span className="editor-step-number" aria-hidden="true">3</span>
+            <h2 className="editor-step-title">
+              <label htmlFor="zoom">Ajuste</label>
+            </h2>
+            <span className="editor-step-aside">Zoom {zoomPercent}%</span>
+          </div>
+          <div className="zoom-row">
+            <button type="button" className="icon-btn" onClick={() => changeZoom(-0.1)} disabled={!photoReady || framing.zoom <= 1} aria-label="Diminuir zoom">
+              −
+            </button>
+            <input
+              id="zoom"
+              type="range"
+              min={1}
+              max={MAX_ZOOM}
+              step={0.01}
+              value={framing.zoom}
+              disabled={!photoReady}
+              onChange={(event) => setFraming((current) => ({ ...current, zoom: Number(event.target.value) }))}
+            />
+            <button type="button" className="icon-btn" onClick={() => changeZoom(0.1)} disabled={!photoReady || framing.zoom >= MAX_ZOOM} aria-label="Aumentar zoom">
+              +
+            </button>
+          </div>
+          <button type="button" className="link-btn" onClick={() => setFraming({ zoom: 1, offsetX: 0, offsetY: 0 })} disabled={!photoReady}>
+            Centralizar de novo
+          </button>
+        </li>
 
-        <div className="row" style={{ marginTop: 20 }}>
-          <button className="btn" disabled={!canSubmit({ candidateId, hasFile: file !== null, hasImage: image !== null, frameReady, busy })} onClick={submit}>
+        <li className="editor-pay">
+          <div className="pay-summary">
+            <span>Foto pronta, sem marca d&apos;água</span>
+            <b>{price}</b>
+          </div>
+          <button className="btn btn-lg pay-btn" disabled={!ready} onClick={submit}>
             {busy ? "Gerando Pix..." : `Baixar foto pronta • ${price}`}
           </button>
-        </div>
-
-        {error ? <p className="error" role="alert">{error}</p> : null}
-        <p className="hint">A prévia tem marca d&apos;água. Depois do pagamento do Pix, você baixa a foto sem ela.</p>
-      </div>
+          {error ? (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          ) : null}
+          <p className="hint">{payHint} A prévia é grátis; a foto final é montada depois do Pix, sem marca d&apos;água.</p>
+        </li>
+      </ol>
     </section>
   );
 }
