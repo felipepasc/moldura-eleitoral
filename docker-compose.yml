@@ -1,0 +1,27 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: moldura
+      POSTGRES_PASSWORD: moldura
+      POSTGRES_DB: moldura
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: moldura
+      MINIO_ROOT_PASSWORD: moldura-secret
+    ports:
+      - "9200:9000"
+      - "9201:9001"
+    volumes:
+      - miniodata:/data
+
+volumes:
+  pgdata:
+  miniodata:

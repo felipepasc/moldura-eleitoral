@@ -1,0 +1,11 @@
+{
+  "name": "moldura-eleitoral",
+  "private": true,
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "dev:api": "pnpm --filter @moldura/api dev",
+    "dev:web": "pnpm --filter @moldura/web dev",
+    "test": "pnpm -r --workspace-concurrency=1 test",
+    "typecheck": "pnpm -r typecheck"
+  }
+}
