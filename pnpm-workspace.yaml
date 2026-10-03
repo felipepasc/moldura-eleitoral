@@ -3,6 +3,9 @@ packages:
   - api
   - web
 
+allowBuilds:
+  esbuild: set this to true or false
+
 onlyBuiltDependencies:
   - sharp
   - esbuild

@@ -1,0 +1,3 @@
+auto-install-peers=true
+build-fails-on-warning=false
+ignore-scripts=false
