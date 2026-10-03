@@ -8,8 +8,8 @@
     "prebuild": "node scripts/sync-frames.mjs",
     "build": "next build",
     "start": "next start -p 6610",
-    "typecheck": "tsc --noEmit",
-    "test": "tsc --noEmit"
+    "typecheck": "next typegen && tsc --noEmit",
+    "test": "next typegen && tsc --noEmit"
   },
   "dependencies": {
     "@moldura/common": "workspace:*",
