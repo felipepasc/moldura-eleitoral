@@ -20,8 +20,19 @@ O cliente vê a prévia grátis (com marca d'água), paga R$ 3,99 por Pix (Abaca
 
 ## Molduras
 
-Ficam em `api/assets/frames/<id>.png` (1080×1080, anel opaco, centro e cantos transparentes, sem rostos). `pnpm --filter @moldura/api frames:placeholder` regenera os placeholders; as molduras finais são geradas pelo Codex e validadas por `pnpm --filter @moldura/api test`.
+Ficam em `api/assets/frames/<id>.png` (1080×1080, anel opaco, centro e cantos transparentes, sem rostos). `pnpm frames:build` (alias de `frames:placeholder` na api) regenera as 12 molduras provisórias com as cores do partido, o nome em arco e o número, tudo como caminhos de glifos (sem `<text>`, sem depender de fontes do sistema); as molduras finais são geradas pelo Codex e validadas por `pnpm --filter @moldura/api test`.
 Os arquivos públicos `/frames/<id>.png` (servidos pelo web) são as molduras **sem** marca d'água, de propósito: são só o anel decorativo, sem a foto do cliente. A marca d'água existe apenas na prévia do navegador.
+
+## Dados dos candidatos e partidos
+
+- Partidos: `common/src/parties.ts` (sigla, nome, número e três cores; sem logotipos). Os hex vêm de pesquisa em sites oficiais e Wikipédia em 03/10/2026; `colorsEstimated: true` marca cores que não vieram de manual de identidade (todas, exceto Solidariedade). PV e PCB não tiveram hex verificado e usam valores razoáveis. PMB agora é "Democrata" (35), PMN é "Mobiliza" (33); União Brasil (44) e PP (11) formam federação, mas mantêm número próprio.
+- Candidatos: `common/src/candidates.ts` com os 12 presidentes de 2026. **A lista veio de reportagens** (o site do TSE bloqueou a consulta automatizada): **conferir no DivulgaCand antes de publicar**. Leonardo Avalanche (PRTB) desistiu e não consta. As cores de cada candidato são derivadas do partido.
+- Estados: `common/src/states.ts` (27 UFs). Governadores ainda não existem: para acrescentar, crie entradas em `candidates.ts` com `office: "governador"` e `state` (use `candidatesBy("governador", "SP")` para filtrar), gere a moldura com `pnpm frames:build` e rode `pnpm test`.
+- Só dados públicos (nomes, números, partidos, cores): nada de e-mail, telefone, CPF ou endereço.
+
+### Fonte das molduras
+
+O texto das molduras usa a Montserrat ExtraBold (subconjunto latin, `api/assets/fonts/montserrat-latin-800-normal.woff`, obtida do pacote npm `@fontsource/montserrat`), licenciada sob a SIL Open Font License 1.1; o texto da licença está em `api/assets/fonts/Montserrat-OFL.txt`. O `opentype.js` (devDependency da api) converte os glifos em caminhos SVG.
 
 ## AbacatePay
 

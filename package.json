@@ -6,6 +6,7 @@
     "dev:api": "pnpm --filter @moldura/api dev",
     "dev:web": "pnpm --filter @moldura/web dev",
     "test": "pnpm -r --workspace-concurrency=1 test",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "frames:build": "pnpm --filter @moldura/api frames:build"
   }
 }

@@ -1,34 +1,125 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import sharp from "sharp";
+import opentype from "opentype.js";
+import type { Font } from "opentype.js";
 import { FRAME_RING_RATIO, FRAME_SIZE, innerRadius } from "@moldura/common";
 import type { Candidate } from "@moldura/common";
-import { pixelAt } from "@/scripts/fixtures/pixels";
 
-function arcPath(center: number, radius: number, startAngle: number, endAngle: number): string {
-  const startX = center + radius * Math.cos(startAngle);
-  const startY = center + radius * Math.sin(startAngle);
-  const endX = center + radius * Math.cos(endAngle);
-  const endY = center + radius * Math.sin(endAngle);
+const FONT_URL = new URL("../../assets/fonts/montserrat-latin-800-normal.woff", import.meta.url);
+const MAX_ARC_DEGREES = 100;
+const LETTER_SPACING = 0.05;
+const CAP_HEIGHT = 0.7;
 
-  return `M ${startX} ${startY} A ${radius} ${radius} 0 0 1 ${endX} ${endY}`;
+let cachedFont: Font | undefined;
+
+function loadFont(): Font {
+  if (!cachedFont) {
+    const file = readFileSync(fileURLToPath(FONT_URL));
+    cachedFont = opentype.parse(file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength));
+  }
+
+  return cachedFont;
 }
 
-export async function renderPlaceholderFrame(candidate: Candidate): Promise<Buffer> {
+// Caracteres do texto que a fonte não cobre (glifo .notdef). Vazio quando tudo é desenhável.
+export function missingGlyphs(text: string): string[] {
+  const font = loadFont();
+
+  return [...text].filter((character) => character !== " " && font.charToGlyph(character).index === 0);
+}
+
+function luminance(hex: string): number {
+  const channels = [1, 3, 5].map((index) => {
+    const value = Number.parseInt(hex.slice(index, index + 2), 16) / 255;
+
+    return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  });
+
+  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+}
+
+function contrast(first: string, second: string): number {
+  const high = Math.max(luminance(first), luminance(second));
+  const low = Math.min(luminance(first), luminance(second));
+
+  return (high + 0.05) / (low + 0.05);
+}
+
+function bestTextColor(background: string, options: string[]): string {
+  return [...options].sort((first, second) => contrast(second, background) - contrast(first, background))[0];
+}
+
+function round(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+// Texto em arco, glifo a glifo, como caminhos SVG (sem <text>): independe de fontes do sistema.
+// Centrado no topo do anel; encolhe para caber em MAX_ARC_DEGREES sem cortar.
+function arcText(text: string, center: number, radius: number, maxFontSize: number, fill: string): string {
+  const font = loadFont();
+  const characters = [...text];
+  const maxArc = (MAX_ARC_DEGREES * Math.PI * radius) / 180;
+  const widthAt = (fontSize: number) => characters.reduce((sum, character) => sum + font.getAdvanceWidth(character, fontSize) + fontSize * LETTER_SPACING, 0);
+  const natural = widthAt(maxFontSize);
+  const fontSize = natural > maxArc ? (maxFontSize * maxArc) / natural : maxFontSize;
+  const total = widthAt(fontSize) - fontSize * LETTER_SPACING;
+  const baseline = radius - (fontSize * CAP_HEIGHT) / 2;
+  let cursor = -total / 2;
+  const paths: string[] = [];
+
+  for (const character of characters) {
+    const advance = font.getAdvanceWidth(character, fontSize);
+
+    if (character !== " ") {
+      const angle = (cursor + advance / 2) / radius;
+      const x = center + baseline * Math.sin(angle);
+      const y = center - baseline * Math.cos(angle);
+      const data = font.getPath(character, -advance / 2, 0, fontSize).toPathData(2);
+
+      paths.push(`<path transform="translate(${round(x)} ${round(y)}) rotate(${round((angle * 180) / Math.PI)})" d="${data}" fill="${fill}"/>`);
+    }
+
+    cursor += advance + fontSize * LETTER_SPACING;
+  }
+
+  return paths.join("");
+}
+
+function centeredText(text: string, x: number, y: number, fontSize: number, fill: string): string {
+  const font = loadFont();
+  const width = font.getAdvanceWidth(text, fontSize);
+  const data = font.getPath(text, x - width / 2, y + (fontSize * CAP_HEIGHT) / 2, fontSize).toPathData(2);
+
+  return `<path d="${data}" fill="${fill}"/>`;
+}
+
+export function buildFrameSvg(candidate: Candidate): string {
   const size = FRAME_SIZE;
   const center = size / 2;
   const ring = size * FRAME_RING_RATIO;
   const inner = innerRadius(size);
   const middle = inner + ring / 2;
-  const badge = size * 0.11;
   const [main, second, third] = candidate.colors;
+  const band = ring * 0.08;
+  const badgeRadius = ring * 0.46;
+  const badgeY = center + middle;
+  const nameColor = bestTextColor(main, [second, third, "#ffffff", "#000000"]);
+  const badgeFill = bestTextColor(main, [second, third]);
+  const numberColor = bestTextColor(badgeFill, [main, "#ffffff", "#000000"]);
 
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">
     <circle cx="${center}" cy="${center}" r="${middle}" fill="none" stroke="${main}" stroke-width="${ring}"/>
-    <path d="${arcPath(center, center - ring * 0.16, Math.PI * 0.05, Math.PI * 0.55)}" fill="none" stroke="${second}" stroke-width="${ring * 0.32}"/>
-    <path d="${arcPath(center, inner + ring * 0.16, Math.PI * 0.05, Math.PI * 0.55)}" fill="none" stroke="${third}" stroke-width="${ring * 0.32}"/>
-    <circle cx="${center}" cy="${size - badge * 0.95}" r="${badge}" fill="${main}" stroke="#ffffff" stroke-width="${size * 0.012}"/>
+    <circle cx="${center}" cy="${center}" r="${center - band / 2}" fill="none" stroke="${second}" stroke-width="${band}"/>
+    <circle cx="${center}" cy="${center}" r="${inner + band / 2}" fill="none" stroke="${third}" stroke-width="${band}"/>
+    ${arcText(candidate.frameName, center, middle, ring * 0.78, nameColor)}
+    <circle cx="${center}" cy="${badgeY}" r="${badgeRadius}" fill="${badgeFill}" stroke="${main}" stroke-width="${size * 0.006}"/>
+    ${centeredText(candidate.number, center, badgeY, badgeRadius * 0.95, numberColor)}
   </svg>`;
+}
 
-  return sharp(Buffer.from(svg)).png().toBuffer();
+export async function renderPlaceholderFrame(candidate: Candidate): Promise<Buffer> {
+  return sharp(Buffer.from(buildFrameSvg(candidate))).png().toBuffer();
 }
 
 export async function validateFrame(png: Buffer): Promise<string[]> {
@@ -41,21 +132,46 @@ export async function validateFrame(png: Buffer): Promise<string[]> {
     return problems;
   }
 
+  const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const alphaAt = (x: number, y: number) => data[(y * info.width + x) * 4 + 3];
   const center = FRAME_SIZE / 2;
-  const centerPixel = await pixelAt(png, center, center);
-  const cornerPixel = await pixelAt(png, 2, 2);
-  const ringPixel = await pixelAt(png, center, Math.round(center - innerRadius() - 20));
+  const inner = innerRadius();
+  let opaqueInDisc = 0;
 
-  if (centerPixel.a !== 0) {
-    problems.push("o centro não é transparente");
+  for (let y = 0; y < FRAME_SIZE; y += 20) {
+    for (let x = 0; x < FRAME_SIZE; x += 20) {
+      if (Math.hypot(x - center, y - center) < 390 && alphaAt(x, y) !== 0) {
+        opaqueInDisc += 1;
+      }
+    }
   }
 
-  if (cornerPixel.a !== 0) {
-    problems.push("o canto não é transparente");
+  if (opaqueInDisc > 0 || alphaAt(center, center) !== 0) {
+    problems.push("o disco central não é totalmente transparente");
   }
 
-  if (ringPixel.a < 250) {
-    problems.push("o anel não é opaco no topo");
+  const last = FRAME_SIZE - 3;
+  const corners = [alphaAt(2, 2), alphaAt(last, 2), alphaAt(2, last), alphaAt(last, last)];
+
+  if (corners.some((alpha) => alpha !== 0)) {
+    problems.push("algum canto não é transparente");
+  }
+
+  const ringRadius = inner + (center - inner) / 2;
+  const weakAngles: number[] = [];
+
+  for (let step = 0; step < 8; step += 1) {
+    const angle = (step * Math.PI) / 4;
+    const x = Math.round(center + ringRadius * Math.sin(angle));
+    const y = Math.round(center - ringRadius * Math.cos(angle));
+
+    if (alphaAt(x, y) < 250) {
+      weakAngles.push(step * 45);
+    }
+  }
+
+  if (weakAngles.length > 0) {
+    problems.push(`o anel não é opaco nos ângulos ${weakAngles.join(", ")}`);
   }
 
   return problems;

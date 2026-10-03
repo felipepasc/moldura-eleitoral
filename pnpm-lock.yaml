@@ -44,12 +44,18 @@ importers:
         specifier: ^4.6.5
         version: 4.6.5
     devDependencies:
+      '@fontsource/montserrat':
+        specifier: ^5.3.0
+        version: 5.3.0
       '@types/node':
         specifier: ^26.6.4
         version: 26.6.4
       drizzle-kit:
         specifier: ^0.31.11
         version: 0.31.11
+      opentype.js:
+        specifier: ^2.0.0
+        version: 2.0.0
       tsx:
         specifier: ^4.23.15
         version: 4.23.15
@@ -593,6 +599,9 @@ packages:
 
   '@fastify/rate-limit@11.2.0':
     resolution: {integrity: sha512-X7osJd4XSvMoejYrnJkSZYYjY1eNYoBqhjlzf1RakC2204qExFqZFTKj5+T7VuzA/iUI9Z3UoSqQRkB2HpG0oQ==}
+
+  '@fontsource/montserrat@5.3.0':
+    resolution: {integrity: sha512-iQPDtZOnmM5ih4JBGaMSXisRap0ixb9bAUw2hDtY7EjVfaqiiNlKtVuJl9XclxUwtwMMHNcWXfQR6zI9x05+Tg==}
 
   '@img/colour@1.1.0':
     resolution: {integrity: sha512-Td76q7j57o/tLVdgS746cYARfSyxk8iEfRxewL9h4OMzYhbW4TAcppl0mT4eyqXddh6L/jwoM75mo7ixa/pCeQ==}
@@ -1260,6 +1269,10 @@ packages:
     resolution: {integrity: sha512-0eJJY6hXLGf1udHwfNftBqH+g73EU4B504nZeKpz1sYRKafAghwxEJunB2O7rDZkL4PGfsMVnTXZ2EjibbqcsA==}
     engines: {node: '>=14.0.0'}
 
+  opentype.js@2.0.0:
+    resolution: {integrity: sha512-kCyjv6xdDY1W/jLWZ/L3QhhTlKUqDZMQ5+Jdlw12b3dXkKNpYBqqlMMj0YDQPShWFTMwgZI1hG14kN3XUDSg/A==}
+    hasBin: true
+
   path-expression-matcher@1.6.2:
     resolution: {integrity: sha512-enSlaiat05iasnzmgNxRj8reFdj3puY2QpNgP1aPIaVfT6nn9ICuPoFlKHk8EN22HcwewshO+mN2DGbkCEOtqQ==}
     engines: {node: '>=14.0.0'}
@@ -1753,6 +1766,8 @@ snapshots:
       fastify-plugin: 6.0.0
       ip-address: 10.7.3
       toad-cache: 3.7.4
+
+  '@fontsource/montserrat@5.3.0': {}
 
   '@img/colour@1.1.0': {}
 
@@ -2260,6 +2275,8 @@ snapshots:
       - babel-plugin-macros
 
   on-exit-leak-free@2.1.2: {}
+
+  opentype.js@2.0.0: {}
 
   path-expression-matcher@1.6.2: {}
 
