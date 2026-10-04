@@ -9,8 +9,10 @@ import { ART_IDS, artSrc, contrastRatio, displayName, frameSrc, hasArt, readable
 test("hasArt e artSrc só reconhecem as ilustrações aprovadas", () => {
   assert.equal(hasArt("lula"), true);
   assert.equal(artSrc("lula"), "/art/lula.webp");
-  assert.equal(hasArt("wilson-grassi"), false);
-  assert.equal(artSrc("wilson-grassi"), null);
+  assert.equal(hasArt("wilson-grassi"), true);
+  assert.equal(hasArt("neutral"), false);
+  assert.equal(artSrc("neutral"), null);
+  assert.equal(hasArt("candidato-inexistente"), false);
   assert.equal(hasArt("../lula"), false);
   assert.equal(artSrc(""), null);
 });
@@ -68,4 +70,12 @@ test("toda ilustração de ART_IDS tem o arquivo public/art/<id>.webp e um candi
 
 test("frameSrc aponta para a moldura reduzida em WebP", () => {
   assert.equal(frameSrc("lula"), "/frames/lula.webp");
+});
+
+test("todos os 12 presidentes têm ilustração (e a moldura neutra continua sem)", () => {
+  for (const candidate of candidatesBy("presidente")) {
+    assert.equal(hasArt(candidate.id), true, candidate.id);
+  }
+
+  assert.equal(ART_IDS.length, 12);
 });

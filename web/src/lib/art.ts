@@ -2,7 +2,20 @@ import type { Candidate } from "@moldura/common";
 
 // Ilustrações estilizadas geradas por IA e aprovadas, em web/public/art/<id>.webp (640×640).
 // Ao aprovar uma nova ilustração, copie o arquivo e acrescente o id aqui.
-export const ART_IDS: readonly string[] = ["lula", "flavio-bolsonaro", "zema", "ronaldo-caiado", "samara", "augusto-cury"];
+export const ART_IDS: readonly string[] = [
+  "lula",
+  "flavio-bolsonaro",
+  "zema",
+  "ronaldo-caiado",
+  "samara",
+  "augusto-cury",
+  "renan-santos",
+  "clariana-barao",
+  "edmilson-costa",
+  "hertz-dias",
+  "rui-costa-pimenta",
+  "wilson-grassi",
+];
 
 export const AI_NOTE = "Ilustrações geradas por IA, estilizadas — não são fotos nem material oficial das campanhas.";
 
