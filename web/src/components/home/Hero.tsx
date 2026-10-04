@@ -2,46 +2,35 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { CANDIDATES, PRICE_CENTS } from "@moldura/common";
+import { PRICE_CENTS } from "@moldura/common";
 import { AiBadge } from "@/components/AiBadge";
-import { FramedPortrait } from "@/components/home/FramedPortrait";
-import { AI_NOTE, hasArt } from "@/lib/art";
-import { NEUTRAL_FRAME_ID, NEUTRAL_SLIDE, buildHeroSlides } from "@/lib/hero-slides";
-import type { HeroSlide } from "@/lib/hero-slides";
+import { AI_NOTE, EXAMPLE_FRAME_ID, HERO_ART, frameSrc } from "@/lib/art";
+import type { HeroArt } from "@/lib/art";
 
-const CYCLE_MS = 3500;
+const CYCLE_MS = 4000;
 const price = (PRICE_CENTS / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-function slideHasArt(slide: HeroSlide): boolean {
-  return slide.kind === "candidate" && hasArt(slide.candidate.id);
+// Pessoa fictícia (ilustração de IA) na moldura de exemplo "SEU CANDIDATO" / 00: o topo não mostra candidato nem partido.
+function ExamplePortrait({ art, decorative }: { art: HeroArt; decorative: boolean }) {
+  return (
+    <div className="portrait">
+      <div className="portrait-photo">
+        <img src={art.src} alt={decorative ? "" : art.alt} loading="eager" decoding="async" width={640} height={640} />
+      </div>
+      <img className="portrait-frame" src={frameSrc(EXAMPLE_FRAME_ID)} alt="" loading="eager" decoding="async" width={1080} height={1080} />
+    </div>
+  );
 }
 
-// Só o slide atual, o anterior (saindo no crossfade) e o próximo (pré-carregado) ficam montados.
-function isNear(index: number, active: number, total: number): boolean {
-  return index === active || index === (active + 1) % total || index === (active - 1 + total) % total;
-}
-
-function SlidePortrait({ slide, decorative, badge }: { slide: HeroSlide; decorative: boolean; badge: "none" }) {
-  if (slide.kind === "neutral") {
-    return <FramedPortrait id={NEUTRAL_FRAME_ID} name="Sua foto aqui" badge={badge} decorative={decorative} eager frameAlt="Moldura de exemplo: sua foto aqui" />;
-  }
-
-  return <FramedPortrait id={slide.candidate.id} name={slide.candidate.name} badge={badge} decorative={decorative} eager />;
-}
-
-function SlideLayers({ slides, active, decorative }: { slides: HeroSlide[]; active: number; decorative: boolean }) {
+function ExampleLayers({ active, decorative }: { active: number; decorative: boolean }) {
   return (
     <>
-      {slides.map((slide, index) => {
-        if (!isNear(index, active, slides.length)) {
-          return null;
-        }
-
+      {HERO_ART.map((art, index) => {
         const current = index === active;
 
         return (
-          <div key={slide.key} className={`hero-layer${current ? " is-active" : ""}`} aria-hidden={current && !decorative ? undefined : true}>
-            <SlidePortrait slide={slide} decorative={decorative || !current} badge="none" />
+          <div key={art.id} className={`hero-layer${current ? " is-active" : ""}`} aria-hidden={current && !decorative ? undefined : true}>
+            <ExamplePortrait art={art} decorative={decorative || !current} />
           </div>
         );
       })}
@@ -50,13 +39,11 @@ function SlideLayers({ slides, active, decorative }: { slides: HeroSlide[]; acti
 }
 
 export function Hero() {
-  // SSR e primeira pintura: só o slide neutro (sem favorecer ninguém e sem diferença de hidratação).
-  const [slides, setSlides] = useState<HeroSlide[]>([NEUTRAL_SLIDE]);
+  // SSR e primeira pintura: a primeira pessoa; com movimento reduzido fica nela.
   const [active, setActive] = useState(0);
 
   useEffect(() => {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const built = buildHeroSlides(CANDIDATES);
     let timer: number | undefined;
 
     function stop() {
@@ -69,19 +56,15 @@ export function Hero() {
     function sync() {
       stop();
 
-      // Movimento reduzido: só o slide neutro fica montado (nenhuma imagem de candidato é carregada).
       if (reduced.matches) {
         setActive(0);
-        setSlides([NEUTRAL_SLIDE]);
 
         return;
       }
 
-      setSlides(built);
-
-      if (!document.hidden && built.length > 1) {
+      if (!document.hidden && HERO_ART.length > 1) {
         timer = window.setInterval(() => {
-          setActive((current) => (current + 1) % built.length);
+          setActive((current) => (current + 1) % HERO_ART.length);
         }, CYCLE_MS);
       }
     }
@@ -97,16 +80,14 @@ export function Hero() {
     };
   }, []);
 
-  const showBadge = slideHasArt(slides[active] ?? NEUTRAL_SLIDE);
-
   return (
     <section className="hero" aria-labelledby="hero-title">
-      <div className="hero-flags" aria-hidden="true">
-        <svg className="flag-green" viewBox="0 0 200 400" focusable="false">
-          <path d="M0 0h70c60 70 100 150 110 250L0 400z" fill="#1f9d55" />
+      <div className="hero-shapes" aria-hidden="true">
+        <svg className="shape-a" viewBox="0 0 200 400" focusable="false">
+          <path d="M0 0h70c60 70 100 150 110 250L0 400z" />
         </svg>
-        <svg className="flag-yellow" viewBox="0 0 200 300" focusable="false">
-          <path d="M0 20l170 120L0 290z" fill="#fcc82e" />
+        <svg className="shape-b" viewBox="0 0 200 300" focusable="false">
+          <path d="M0 20l170 120L0 290z" />
         </svg>
       </div>
 
@@ -118,7 +99,7 @@ export function Hero() {
             <span className="scribble">
               você gosta
               <svg viewBox="0 0 300 24" preserveAspectRatio="none" aria-hidden="true" focusable="false">
-                <path d="M4 15c46-7 98-10 150-9 52 1 96 4 142 2" fill="none" stroke="#fcc82e" strokeWidth="9" strokeLinecap="round" />
+                <path d="M4 15c46-7 98-10 150-9 52 1 96 4 142 2" fill="none" strokeWidth="9" strokeLinecap="round" />
               </svg>
             </span>
           </h1>
@@ -133,15 +114,15 @@ export function Hero() {
         </div>
 
         <div className="hero-stage">
-          <div className="stage-blob stage-blob--yellow" aria-hidden="true" />
-          <div className="stage-blob stage-blob--green" aria-hidden="true" />
+          <div className="stage-blob stage-blob--a" aria-hidden="true" />
+          <div className="stage-blob stage-blob--b" aria-hidden="true" />
 
           <div className="hero-avatar">
             <div className="hero-ring" aria-hidden="true" />
             <div className="hero-layers">
-              <SlideLayers slides={slides} active={active} decorative={false} />
+              <ExampleLayers active={active} decorative={false} />
             </div>
-            <span className={`badge-slot${showBadge ? " is-on" : ""}`} aria-hidden={showBadge ? undefined : true}>
+            <span className="badge-slot is-on">
               <AiBadge size="lg" />
             </span>
           </div>
@@ -158,8 +139,8 @@ export function Hero() {
             <div className="phone-screen">
               <span className="phone-notch" />
               <div className="phone-avatar">
-                <SlideLayers slides={slides} active={active} decorative />
-                <span className={`badge-slot${showBadge ? " is-on" : ""}`}>
+                <ExampleLayers active={active} decorative />
+                <span className="badge-slot is-on">
                   <AiBadge size="sm" />
                 </span>
               </div>

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { CANDIDATES, CreateOrderSchema, PARTIES, findCandidate, findParty } from "@moldura/common";
-import { NEUTRAL_FRAME, buildFrameSvg, missingGlyphs, renderPlaceholderFrame, validateFrame } from "@/scripts/placeholder-frame";
+import { EXEMPLO_FRAME, NEUTRAL_FRAME, buildFrameSvg, missingGlyphs, renderPlaceholderFrame, validateFrame } from "@/scripts/placeholder-frame";
 
 const FRAMES_DIR = path.resolve("assets/frames");
 const MIN_PARTY_DISTANCE = 60;
@@ -116,20 +116,35 @@ test("a moldura neutra passa no validador, não tem número e não é candidato"
   assert.equal(CreateOrderSchema.shape.candidateId.safeParse("neutral").success, false);
 });
 
-test("a moldura neutra não usa as cores de nenhum partido", () => {
-  const svg = buildFrameSvg(NEUTRAL_FRAME).toLowerCase();
+for (const frame of [NEUTRAL_FRAME, EXEMPLO_FRAME]) {
+  test(`a moldura ${frame.id} não usa as cores de nenhum partido`, () => {
+    const svg = buildFrameSvg(frame).toLowerCase();
 
-  assert.ok(svg.includes("<path"));
-  assert.ok(!svg.includes("<text"));
+    assert.ok(svg.includes("<path"));
+    assert.ok(!svg.includes("<text"));
 
-  // Nenhuma cor da moldura neutra pode ficar perto (distância RGB < 60) de qualquer cor de qualquer partido.
-  for (const color of NEUTRAL_FRAME.colors) {
-    for (const party of PARTIES) {
-      for (const partyColor of [party.colors.primary, party.colors.secondary, party.colors.accent]) {
-        assert.ok(rgbDistance(color, partyColor) >= MIN_PARTY_DISTANCE, `${color} parece ${party.acronym} ${partyColor}`);
+    // Nenhuma cor da moldura pode ficar perto (distância RGB < 60) de qualquer cor de qualquer partido.
+    for (const color of frame.colors) {
+      for (const party of PARTIES) {
+        for (const partyColor of [party.colors.primary, party.colors.secondary, party.colors.accent]) {
+          assert.ok(rgbDistance(color, partyColor) >= MIN_PARTY_DISTANCE, `${color} parece ${party.acronym} ${partyColor}`);
+        }
       }
     }
-  }
+  });
+}
+
+test("a moldura de exemplo (\"SEU CANDIDATO\", 00) passa no validador e não é candidato", async () => {
+  const png = await readFile(path.join(FRAMES_DIR, `${EXEMPLO_FRAME.id}.png`));
+
+  assert.deepEqual(await validateFrame(png), []);
+  assert.equal(EXEMPLO_FRAME.id, "exemplo");
+  assert.equal(EXEMPLO_FRAME.frameName, "SEU CANDIDATO");
+  assert.equal(EXEMPLO_FRAME.number, "00");
+  assert.deepEqual(missingGlyphs(EXEMPLO_FRAME.frameName + "00"), []);
+  assert.equal(findCandidate("exemplo"), undefined);
+  assert.ok(!CANDIDATES.some((candidate) => candidate.id === "exemplo" || candidate.number === "00"));
+  assert.equal(CreateOrderSchema.shape.candidateId.safeParse("exemplo").success, false);
 });
 
 test("o detector de cor de partido acusa uma paleta parecida", () => {

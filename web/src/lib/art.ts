@@ -17,6 +17,18 @@ export const ART_IDS: readonly string[] = [
   "wilson-grassi",
 ];
 
+// Topo da home: pessoas FICTÍCIAS (ilustrações geradas por IA) na moldura de exemplo "SEU CANDIDATO" / 00.
+// Ficam fora de ART_IDS: não são candidatos.
+export const EXAMPLE_FRAME_ID = "exemplo";
+
+export type HeroArt = { id: string; src: string; alt: string };
+
+export const HERO_ART: readonly HeroArt[] = [1, 2, 3].map((index) => ({
+  id: `hero-${index}`,
+  src: `/art/hero-${index}.webp`,
+  alt: "Ilustração estilizada, gerada por IA, de uma pessoa fictícia com a moldura de exemplo",
+}));
+
 export const AI_NOTE = "Ilustrações geradas por IA, estilizadas — não são fotos nem material oficial das campanhas.";
 
 export function hasArt(id: string): boolean {

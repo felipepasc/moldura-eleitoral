@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import { FRAME_LOAD_ERROR, canSubmit, frameFailed, frameLoaded, frameLoading, initialCandidateId, isFrameReady, payHint, previewFrameSrc } from "./frame-choice";
 
 test("sem ?c= válido, nenhuma moldura vem escolhida (nada de pré-selecionar o primeiro candidato)", () => {
@@ -64,4 +66,12 @@ test("tentar de novo volta a carregando; status de outro candidato conta como ca
 test("dica sem candidato", () => {
   assert.equal(payHint({ candidateId: "", photoReady: false, ready: false, frame: frameLoaded("") }), "Escolha sua foto e a moldura para continuar.");
   assert.equal(payHint({ candidateId: "", photoReady: true, ready: false, frame: frameLoaded("") }), "Agora escolha a moldura para continuar.");
+});
+
+test("as molduras neutra (prévia do /criar) e de exemplo (topo da home) existem na api, fonte do sync-frames", () => {
+  for (const id of ["neutral", "exemplo"]) {
+    const frame = fileURLToPath(new URL(`../../../api/assets/frames/${id}.png`, import.meta.url));
+
+    assert.ok(existsSync(frame), frame);
+  }
 });

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { CANDIDATES, PARTIES, candidatesBy, findCandidate } from "@moldura/common";
-import { ART_IDS, artSrc, contrastRatio, displayName, frameSrc, hasArt, readableText, swatch, withArt } from "./art";
+import { ART_IDS, EXAMPLE_FRAME_ID, HERO_ART, artSrc, contrastRatio, displayName, frameSrc, hasArt, readableText, swatch, withArt } from "./art";
 
 test("hasArt e artSrc só reconhecem as ilustrações aprovadas", () => {
   assert.equal(hasArt("lula"), true);
@@ -78,4 +78,25 @@ test("todos os 12 presidentes têm ilustração (e a moldura neutra continua sem
   }
 
   assert.equal(ART_IDS.length, 12);
+});
+
+test("ilustrações do topo: 3 pessoas fictícias, arquivos existem e não são candidatos", () => {
+  const artDir = fileURLToPath(new URL("../../public/art/", import.meta.url));
+
+  assert.equal(HERO_ART.length, 3);
+
+  for (const item of HERO_ART) {
+    assert.match(item.src, /^\/art\/hero-[1-3]\.webp$/);
+    assert.ok(existsSync(join(artDir, item.src.replace("/art/", ""))), item.src);
+    assert.ok(!ART_IDS.includes(item.id), item.id);
+    assert.equal(findCandidate(item.id), undefined);
+    assert.equal(hasArt(item.id), false);
+    assert.match(item.alt, /gerada por IA/);
+  }
+});
+
+test("a moldura do topo é a de exemplo, que não é candidato", () => {
+  assert.equal(EXAMPLE_FRAME_ID, "exemplo");
+  assert.equal(frameSrc(EXAMPLE_FRAME_ID), "/frames/exemplo.webp");
+  assert.equal(findCandidate(EXAMPLE_FRAME_ID), undefined);
 });
