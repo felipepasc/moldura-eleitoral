@@ -9,11 +9,12 @@ import { createOrder, messageOf } from "@/lib/api";
 import { sortCandidatesAlphabetically } from "@/lib/candidate-order";
 import { canSubmit, frameFailed, frameLoaded, frameLoading, isFrameFailed, isFrameReady, payHint as describePayHint, previewFrameSrc } from "@/lib/frame-choice";
 import type { FrameStatus } from "@/lib/frame-choice";
-import { OFFICE_OPTIONS } from "@/lib/offices";
 import { drawPreview } from "@/lib/preview";
 import { PREVIEW_SIZE, dragFraming } from "@/lib/preview-geometry";
 import { BLACKOUT_MS, isCaptureShortcut } from "@/lib/protection";
 
+// Só molduras de presidente (decisão do produto), em ordem alfabética.
+const PRESIDENTS = sortCandidatesAlphabetically(candidatesBy("presidente"));
 const KEY_STEP = 0.02;
 const clamp = (value: number) => Math.min(1, Math.max(-1, value));
 const price = (PRICE_CENTS / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -414,31 +415,12 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
               <option value="" disabled>
                 Escolha uma moldura…
               </option>
-              {OFFICE_OPTIONS.map((office) => {
-                const group = sortCandidatesAlphabetically(candidatesBy(office.office));
-
-                if (group.length === 0) {
-                  return null;
-                }
-
-                return (
-                  <optgroup key={office.office} label={office.label}>
-                    {group.map((candidate) => (
-                      <option key={candidate.id} value={candidate.id}>
-                        {candidate.name} • {candidate.number}
-                      </option>
-                    ))}
-                  </optgroup>
-                );
-              })}
+              {PRESIDENTS.map((candidate) => (
+                <option key={candidate.id} value={candidate.id}>
+                  {candidate.name} • {candidate.number}
+                </option>
+              ))}
             </select>
-          </div>
-          <div className="governor-row">
-            <label htmlFor="governor-state">Estado (governador)</label>
-            <select id="governor-state" disabled defaultValue="" aria-describedby="governor-soon">
-              <option value="">Governadores: em breve</option>
-            </select>
-            <p id="governor-soon" className="hint">Por enquanto, só as molduras de presidente.</p>
           </div>
         </li>
 

@@ -1,5 +1,4 @@
-import { candidatesBy } from "@moldura/common";
-import type { Candidate, Office, StateCode } from "@moldura/common";
+import type { Candidate } from "@moldura/common";
 
 // Ilustrações estilizadas geradas por IA e aprovadas, em web/public/art/<id>.webp (640×640).
 // Ao aprovar uma nova ilustração, copie o arquivo e acrescente o id aqui.
@@ -26,14 +25,6 @@ export function frameSrc(id: string): string {
 
 export function withArt(candidates: readonly Candidate[]): Candidate[] {
   return candidates.filter((candidate) => hasArt(candidate.id));
-}
-
-export function filterCandidates(office: Office, state?: StateCode | ""): Candidate[] {
-  if (office === "governador" && !state) {
-    return [];
-  }
-
-  return candidatesBy(office, state ? state : undefined);
 }
 
 const LOWER_WORDS = new Set(["da", "das", "de", "do", "dos", "e"]);

@@ -3,8 +3,8 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { CANDIDATES, PARTIES, STATES, findCandidate } from "@moldura/common";
-import { ART_IDS, artSrc, contrastRatio, displayName, filterCandidates, frameSrc, hasArt, readableText, swatch, withArt } from "./art";
+import { CANDIDATES, PARTIES, candidatesBy, findCandidate } from "@moldura/common";
+import { ART_IDS, artSrc, contrastRatio, displayName, frameSrc, hasArt, readableText, swatch, withArt } from "./art";
 
 test("hasArt e artSrc só reconhecem as ilustrações aprovadas", () => {
   assert.equal(hasArt("lula"), true);
@@ -28,15 +28,11 @@ test("withArt mantém a ordem e só os candidatos com ilustração", () => {
   assert.equal(ids.length, ART_IDS.length);
 });
 
-test("filterCandidates separa por cargo e estado", () => {
-  assert.equal(filterCandidates("presidente").length, 12);
-  assert.ok(filterCandidates("presidente").every((candidate) => candidate.office === "presidente"));
-  assert.deepEqual(filterCandidates("governador"), []);
-  assert.deepEqual(filterCandidates("governador", ""), []);
+test("o site mostra só presidentes: 12, todos do cargo presidente", () => {
+  const presidents = candidatesBy("presidente");
 
-  for (const state of STATES) {
-    assert.ok(filterCandidates("governador", state.code).every((candidate) => candidate.office === "governador" && candidate.state === state.code));
-  }
+  assert.equal(presidents.length, 12);
+  assert.ok(presidents.every((candidate) => candidate.office === "presidente"));
 });
 
 test("displayName deixa o nome legível em caixa mista", () => {
