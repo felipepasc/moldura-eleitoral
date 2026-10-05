@@ -24,10 +24,12 @@ async function photo() {
     .toBuffer();
 }
 
-async function multipart(fields: Record<string, string>, file?: { data: Buffer; type: string }) {
+// Como o web: candidateId, framing, consent ("true", salvo se o teste pedir sem) e por último a foto.
+async function multipart(fields: Record<string, string>, file?: { data: Buffer; type: string }, withConsent = true) {
   const form = new FormData();
+  const all = withConsent && !("consent" in fields) ? { ...fields, consent: "true" } : fields;
 
-  for (const [key, value] of Object.entries(fields)) {
+  for (const [key, value] of Object.entries(all)) {
     form.append(key, value);
   }
 
@@ -448,4 +450,30 @@ test("isPrivateAddress reconhece faixas privadas e formas IPv4 mapeadas", () => 
   for (const address of ["203.0.113.9", "172.32.0.1", "8.8.8.8", "2001:db8::1", "::ffff:8.8.8.8", "lixo", ""]) {
     assert.equal(isPrivateAddress(address), false, address);
   }
+});
+
+test("POST /orders sem consentimento (ausente, false ou outro valor) devolve 400 e não cria pedido", async () => {
+  for (const consent of [undefined, "false", "1", "TRUE", ""]) {
+    const fields: Record<string, string> = { candidateId: "lula", framing: FRAMING };
+
+    if (consent !== undefined) {
+      fields.consent = consent;
+    }
+
+    const res = await t.app.inject({ method: "POST", url: "/orders", ...(await multipart(fields, { data: await photo(), type: "image/jpeg" }, false)) });
+
+    assert.equal(res.statusCode, 400, String(consent));
+    assert.deepEqual(res.json(), { error: "Confirme o consentimento para continuar." });
+  }
+
+  const count = await t.db.select({ value: sql<number>`count(*)::int` }).from(orders);
+
+  assert.equal(count[0].value, 0);
+});
+
+test("POST /orders com consent = \"true\" antes da foto cria o pedido", async () => {
+  const res = await t.app.inject({ method: "POST", url: "/orders", ...(await multipart({ candidateId: "flavio-bolsonaro", framing: FRAMING, consent: "true" }, { data: await photo(), type: "image/jpeg" })) });
+
+  assert.equal(res.statusCode, 201);
+  assert.equal(res.json().candidateId, "flavio-bolsonaro");
 });

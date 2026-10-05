@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { AI_NOTE } from "@/lib/art";
+import { OPERATOR, operatorLine } from "@/lib/site";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -42,6 +43,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <footer className="site-footer">
           <p>Site independente de apoio de eleitores. Não é material oficial de nenhuma campanha.</p>
           <p>{AI_NOTE}</p>
+          {OPERATOR ? <p className="footer-operator">{operatorLine(OPERATOR)}</p> : null}
           <nav className="footer-links" aria-label="Informações">
             <Link href="/privacidade">Privacidade</Link>
             <Link href="/termos">Termos de uso</Link>

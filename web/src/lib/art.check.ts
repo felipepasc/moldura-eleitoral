@@ -9,7 +9,8 @@ import { ART_IDS, EXAMPLE_FRAME_ID, HERO_ART, artSrc, contrastRatio, displayName
 test("hasArt e artSrc só reconhecem as ilustrações aprovadas", () => {
   assert.equal(hasArt("lula"), true);
   assert.equal(artSrc("lula"), "/art/lula.webp");
-  assert.equal(hasArt("wilson-grassi"), true);
+  assert.equal(hasArt("flavio-bolsonaro"), true);
+  assert.equal(hasArt("zema"), false);
   assert.equal(hasArt("neutral"), false);
   assert.equal(artSrc("neutral"), null);
   assert.equal(hasArt("candidato-inexistente"), false);
@@ -30,10 +31,10 @@ test("withArt mantém a ordem e só os candidatos com ilustração", () => {
   assert.equal(ids.length, ART_IDS.length);
 });
 
-test("o site mostra só presidentes: 12, todos do cargo presidente", () => {
+test("o site mostra só o 2º turno: 2 presidentes", () => {
   const presidents = candidatesBy("presidente");
 
-  assert.equal(presidents.length, 12);
+  assert.equal(presidents.length, 2);
   assert.ok(presidents.every((candidate) => candidate.office === "presidente"));
 });
 
@@ -72,12 +73,12 @@ test("frameSrc aponta para a moldura reduzida em WebP", () => {
   assert.equal(frameSrc("lula"), "/frames/lula.webp");
 });
 
-test("todos os 12 presidentes têm ilustração (e a moldura neutra continua sem)", () => {
+test("os dois candidatos têm ilustração (e a moldura neutra continua sem)", () => {
   for (const candidate of candidatesBy("presidente")) {
     assert.equal(hasArt(candidate.id), true, candidate.id);
   }
 
-  assert.equal(ART_IDS.length, 12);
+  assert.equal(ART_IDS.length, 2);
 });
 
 test("ilustrações do topo: 3 pessoas fictícias, arquivos existem e não são candidatos", () => {

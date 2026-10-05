@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
-import { CreateOrderSchema, PHOTO_MIME_TYPES } from "@moldura/common";
+import { CONSENT_REQUIRED_MESSAGE, CreateOrderSchema, PHOTO_MIME_TYPES } from "@moldura/common";
 import { badGateway, badReq, created, notFound, ok } from "@/core/http-fastify";
 import type { OrderContext } from "@/modules/orders/context";
 import { GatewayError, createOrder } from "@/modules/orders/services/create-order";
@@ -9,6 +9,7 @@ import { InvalidPhotoError } from "@/modules/orders/services/photo";
 import { refreshOrder } from "@/modules/orders/services/sync-order";
 
 const ParamsSchema = z.object({ id: z.uuid() });
+const OrderDataSchema = CreateOrderSchema.omit({ consent: true });
 
 function fieldValue(field: unknown): string | undefined {
   if (field && typeof field === "object" && "type" in field && field.type === "field" && "value" in field) {
@@ -47,19 +48,27 @@ export function ordersRouter(ctx: OrderContext, ordersPerMinute: number, readsPe
         return badReq(reply, "A foto precisa ser JPG, PNG ou WebP.");
       }
 
-      const parsed = CreateOrderSchema.safeParse({
+      const fields = {
         candidateId: fieldValue(file.fields.candidateId),
         framing: parseJson(fieldValue(file.fields.framing)),
-      });
+        consent: fieldValue(file.fields.consent),
+      };
+
+      if (!OrderDataSchema.safeParse(fields).success) {
+        return badReq(reply, "Dados do pedido inválidos.");
+      }
+
+      // Consentimento (LGPD art. 11: a moldura revela preferência política). O campo vem antes da foto.
+      const parsed = CreateOrderSchema.safeParse(fields);
 
       if (!parsed.success) {
-        return badReq(reply, "Dados do pedido inválidos.");
+        return badReq(reply, CONSENT_REQUIRED_MESSAGE);
       }
 
       const photo = await file.toBuffer();
 
       try {
-        const row = await createOrder(ctx, { ...parsed.data, photo });
+        const row = await createOrder(ctx, { candidateId: parsed.data.candidateId, framing: parsed.data.framing, photo });
         const view = await toOrderView(ctx, row);
 
         return created(reply, view);

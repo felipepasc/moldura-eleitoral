@@ -5,7 +5,7 @@ import { FramedPortrait } from "@/components/home/FramedPortrait";
 import { displayName, hasArt } from "@/lib/art";
 import { sortCandidatesAlphabetically } from "@/lib/candidate-order";
 
-// O site oferece só molduras de presidente (decisão do produto).
+// O site oferece só as molduras dos candidatos do 2º turno (decisão do produto).
 const PRESIDENTS = sortCandidatesAlphabetically(candidatesBy("presidente"));
 
 export function CandidateGrid() {
@@ -15,7 +15,7 @@ export function CandidateGrid() {
         <div className="section-head">
           <div>
             <h2 id="examples-title">Exemplos de molduras</h2>
-            <p className="section-sub">Molduras prontas dos candidatos a presidente em 2026. Toque em uma para usar na sua foto.</p>
+            <p className="section-sub">Molduras prontas dos candidatos do 2º turno das eleições 2026. Toque em uma para usar na sua foto.</p>
           </div>
         </div>
 

@@ -2,12 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { DragEvent, KeyboardEvent, PointerEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CANDIDATES, MAX_ZOOM, PHOTO_MAX_BYTES, PHOTO_MIME_TYPES, PRICE_CENTS, candidatesBy } from "@moldura/common";
 import type { Framing } from "@moldura/common";
-import { createOrder, messageOf } from "@/lib/api";
+import { createOrder, getSalesStatus, messageOf } from "@/lib/api";
 import { sortCandidatesAlphabetically } from "@/lib/candidate-order";
-import { canSubmit, frameFailed, frameLoaded, frameLoading, isFrameFailed, isFrameReady, payHint as describePayHint, previewFrameSrc } from "@/lib/frame-choice";
+import { SALES_CLOSED_MESSAGE, canSubmit, frameFailed, frameLoaded, frameLoading, isFrameFailed, isFrameReady, payHint as describePayHint, previewFrameSrc } from "@/lib/frame-choice";
 import type { FrameStatus } from "@/lib/frame-choice";
 import { drawPreview } from "@/lib/preview";
 import { PREVIEW_SIZE, dragFraming } from "@/lib/preview-geometry";
@@ -37,6 +38,24 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [dragging, setDragging] = useState(false);
+  const [consent, setConsent] = useState(false);
+  const [adult, setAdult] = useState(false);
+  const [salesOpen, setSalesOpen] = useState(true);
+
+  // Vendas abertas/fechadas: uma consulta só; erro conta como aberto (a api recusa com 503 se estiver fechado).
+  useEffect(() => {
+    let active = true;
+
+    void getSalesStatus().then((open) => {
+      if (active) {
+        setSalesOpen(open);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, []);
   const [frameStatus, setFrameStatus] = useState<FrameStatus>(() => frameLoading(initialCandidateId));
   const [frameAttempt, setFrameAttempt] = useState(0);
   const [shortcutHidden, setShortcutHidden] = useState(false);
@@ -260,7 +279,7 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
   const candidateName = CANDIDATES.find((candidate) => candidate.id === candidateId)?.name ?? "";
 
   async function submit() {
-    if (!file || !canSubmit({ candidateId, hasFile: true, hasImage: image !== null, frameReady, busy })) {
+    if (!file || !canSubmit({ candidateId, hasFile: true, hasImage: image !== null, frameReady, busy, consent, adult, salesOpen })) {
       return;
     }
 
@@ -278,7 +297,7 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
   }
 
   const photoReady = image !== null;
-  const ready = canSubmit({ candidateId, hasFile: file !== null, hasImage: photoReady, frameReady, busy });
+  const ready = canSubmit({ candidateId, hasFile: file !== null, hasImage: photoReady, frameReady, busy, consent, adult, salesOpen });
   const zoomLabel = `${framing.zoom.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}×`;
 
   function dropFile(event: DragEvent<HTMLLabelElement>) {
@@ -297,7 +316,7 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
     setFraming((current) => ({ ...current, zoom: Math.min(MAX_ZOOM, Math.max(1, Math.round((current.zoom + delta) * 100) / 100)) }));
   }
 
-  const payHint = describePayHint({ candidateId, photoReady, ready, frame: frameStatus });
+  const payHint = describePayHint({ candidateId, photoReady, ready, frame: frameStatus, confirmed: consent && adult, salesOpen });
 
   return (
     <section className="editor">
@@ -460,8 +479,30 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
             <span>Foto pronta, sem marca d&apos;água</span>
             <b>{price}</b>
           </div>
+          {salesOpen ? null : (
+            <p className="sales-closed" role="status">
+              {SALES_CLOSED_MESSAGE}
+            </p>
+          )}
+          <div className="consent">
+            <label className="check">
+              <input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} required />
+              <span>
+                Autorizo o tratamento da minha foto e da moldura que escolhi — que revela minha preferência política — apenas para montar e entregar esta imagem,
+                conforme a{" "}
+                <Link href="/privacidade" target="_blank" rel="noopener">
+                  Política de Privacidade
+                </Link>
+                .
+              </span>
+            </label>
+            <label className="check">
+              <input type="checkbox" checked={adult} onChange={(event) => setAdult(event.target.checked)} required />
+              <span>Tenho 18 anos ou mais (ou autorização do meu responsável legal).</span>
+            </label>
+          </div>
           <button className="btn btn-lg pay-btn" disabled={!ready} onClick={submit}>
-            {busy ? "Gerando Pix..." : `Baixar foto pronta • ${price}`}
+            {busy ? "Gerando Pix..." : salesOpen ? `Baixar foto pronta • ${price}` : "Vendas abertas em breve"}
           </button>
           {error ? (
             <p className="error" role="alert">
@@ -477,7 +518,7 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
             </div>
           ) : null}
           <p className="hint">
-            {frameFailedNow ? "" : `${payHint} `}A prévia é grátis; a foto final é montada depois do Pix, sem marca d&apos;água.
+            {frameFailedNow || !salesOpen ? "" : `${payHint} `}A prévia é grátis; a foto final é montada depois do Pix, sem marca d&apos;água.
           </p>
         </li>
       </ol>

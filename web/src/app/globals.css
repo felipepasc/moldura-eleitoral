@@ -297,6 +297,14 @@ select:disabled { background:#f1f5f9; color:var(--muted); cursor:not-allowed; }
 .legal-links { margin-top:28px !important; }
 .footer-links { display:flex; justify-content:center; gap:4px 18px; flex-wrap:wrap; margin-top:6px; }
 .footer-links a { display:inline-flex; align-items:center; min-height:44px; padding:0 4px; color:var(--ink); font-weight:600; }
+/* Consentimento e vendas no /criar */
+.consent { display:grid; gap:10px; margin-top:14px; }
+.check { display:flex; align-items:flex-start; gap:10px; margin:0; padding:10px 12px; border:1px solid var(--line); border-radius:12px; background:#fff; font-weight:400; font-size:14px; line-height:1.45; color:#334155; cursor:pointer; }
+.check input { flex:none; width:22px; height:22px; margin:0; accent-color:var(--blue); cursor:pointer; }
+.check:has(input:checked) { border-color:#b7e2c6; background:#f6fbf8; }
+.check a { color:var(--blue); }
+.sales-closed { margin:12px 0 0; padding:10px 12px; border-radius:12px; background:#f1f5f9; border:1px solid var(--line); color:#334155; font-weight:600; font-size:14px; }
+.footer-operator { font-weight:600; color:#334155; }
 @keyframes pulse { 50% { opacity:.35; transform:scale(.8); } }
 
 @media (max-width:900px) {

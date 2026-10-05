@@ -34,6 +34,7 @@ async function createPendingOrder() {
   const form = new FormData();
   form.append("candidateId", "lula");
   form.append("framing", JSON.stringify({ zoom: 1, offsetX: 0, offsetY: 0 }));
+  form.append("consent", "true");
   form.append("photo", new Blob([new Uint8Array(photo)], { type: "image/jpeg" }), "foto.jpg");
   const request = new Request("http://localhost", { method: "POST", body: form });
 

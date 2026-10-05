@@ -92,7 +92,7 @@ test("ordena do mais novo para o mais antigo", () => {
   const storage = fakeStorage(
     JSON.stringify([
       { id: ID_A, candidateId: "lula", savedAt: NOW - 5000 },
-      { id: ID_B, candidateId: "zema", savedAt: NOW - 1000 },
+      { id: ID_B, candidateId: "flavio-bolsonaro", savedAt: NOW - 1000 },
     ]),
   );
 
@@ -197,7 +197,7 @@ test("removeSavedOrder remove só o id pedido", () => {
   const storage = fakeStorage();
 
   saveOrder(storage, { id: ID_A, candidateId: "lula" }, NOW);
-  saveOrder(storage, { id: ID_B, candidateId: "zema" }, NOW + 1);
+  saveOrder(storage, { id: ID_B, candidateId: "flavio-bolsonaro" }, NOW + 1);
   removeSavedOrder(storage, ID_A, NOW + 2);
 
   assert.deepEqual(loadSavedOrders(storage, NOW + 2).map((order) => order.id), [ID_B]);

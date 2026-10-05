@@ -9,21 +9,21 @@ test("sem ?c= válido, nenhuma moldura vem escolhida (nada de pré-selecionar o 
   assert.equal(initialCandidateId(""), "");
   assert.equal(initialCandidateId("neutral"), "");
   assert.equal(initialCandidateId("../lula"), "");
-  assert.equal(initialCandidateId(["zema", "lula"]), "");
+  assert.equal(initialCandidateId(["flavio-bolsonaro", "lula"]), "");
 });
 
 test("com ?c= válido, a moldura do candidato vem escolhida", () => {
-  assert.equal(initialCandidateId("zema"), "zema");
+  assert.equal(initialCandidateId("flavio-bolsonaro"), "flavio-bolsonaro");
   assert.equal(initialCandidateId("lula"), "lula");
 });
 
 test("a prévia usa a moldura neutra em tamanho cheio enquanto nada foi escolhido", () => {
   assert.equal(previewFrameSrc(""), "/frames/neutral.png");
-  assert.equal(previewFrameSrc("zema"), "/frames/zema.png");
+  assert.equal(previewFrameSrc("flavio-bolsonaro"), "/frames/flavio-bolsonaro.png");
 });
 
 test("só dá para pagar com candidato escolhido, foto carregada e moldura pronta", () => {
-  const ready = { candidateId: "zema", hasFile: true, hasImage: true, frameReady: true, busy: false };
+  const ready = { candidateId: "flavio-bolsonaro", hasFile: true, hasImage: true, frameReady: true, busy: false, consent: true, adult: true, salesOpen: true };
 
   assert.equal(canSubmit(ready), true);
   assert.equal(canSubmit({ ...ready, candidateId: "" }), false);
@@ -33,31 +33,50 @@ test("só dá para pagar com candidato escolhido, foto carregada e moldura pront
   assert.equal(canSubmit({ ...ready, busy: true }), false);
 });
 
-test("status da moldura: carregando, pronta e falha valem só para o candidato atual", () => {
-  const loading = frameLoading("zema");
+test("pagar exige as duas confirmações (consentimento e idade) e vendas abertas", () => {
+  const ready = { candidateId: "lula", hasFile: true, hasImage: true, frameReady: true, busy: false, consent: true, adult: true, salesOpen: true };
 
-  assert.deepEqual(loading, { id: "zema", state: "loading" });
-  assert.equal(isFrameReady(loading, "zema"), false);
-  assert.equal(isFrameReady(frameLoaded("zema"), "zema"), true);
-  assert.equal(isFrameReady(frameLoaded("zema"), "lula"), false);
-  assert.equal(isFrameReady(frameFailed("zema"), "zema"), false);
+  assert.equal(canSubmit(ready), true);
+  assert.equal(canSubmit({ ...ready, consent: false }), false);
+  assert.equal(canSubmit({ ...ready, adult: false }), false);
+  assert.equal(canSubmit({ ...ready, consent: false, adult: false }), false);
+  assert.equal(canSubmit({ ...ready, salesOpen: false }), false);
 });
 
-const base = { candidateId: "zema", photoReady: false, ready: false };
+test("dica: faltam as confirmações; vendas fechadas", () => {
+  const frame = frameLoaded("lula");
+  const ready = { candidateId: "lula", photoReady: true, ready: false, frame };
+
+  assert.equal(payHint({ ...ready, confirmed: false }), "Marque as duas confirmações acima para continuar.");
+  assert.equal(payHint({ ...ready, confirmed: true, salesOpen: false }), "As vendas estão fechadas no momento.");
+  assert.equal(payHint({ candidateId: "", photoReady: false, ready: false, frame, salesOpen: false }), "As vendas estão fechadas no momento.");
+});
+
+test("status da moldura: carregando, pronta e falha valem só para o candidato atual", () => {
+  const loading = frameLoading("flavio-bolsonaro");
+
+  assert.deepEqual(loading, { id: "flavio-bolsonaro", state: "loading" });
+  assert.equal(isFrameReady(loading, "flavio-bolsonaro"), false);
+  assert.equal(isFrameReady(frameLoaded("flavio-bolsonaro"), "flavio-bolsonaro"), true);
+  assert.equal(isFrameReady(frameLoaded("flavio-bolsonaro"), "lula"), false);
+  assert.equal(isFrameReady(frameFailed("flavio-bolsonaro"), "flavio-bolsonaro"), false);
+});
+
+const base = { candidateId: "flavio-bolsonaro", photoReady: false, ready: false };
 
 test("dica: carregando, pronta, falha", () => {
-  assert.equal(payHint({ ...base, frame: frameLoading("zema") }), "Carregando a moldura…");
-  assert.equal(payHint({ ...base, frame: frameLoaded("zema") }), "Agora escolha a sua foto para continuar.");
-  assert.equal(payHint({ ...base, frame: frameFailed("zema") }), FRAME_LOAD_ERROR);
-  assert.equal(payHint({ ...base, ready: true, photoReady: true, frame: frameLoaded("zema") }), "Você paga por Pix e baixa a foto em seguida.");
+  assert.equal(payHint({ ...base, frame: frameLoading("flavio-bolsonaro") }), "Carregando a moldura…");
+  assert.equal(payHint({ ...base, frame: frameLoaded("flavio-bolsonaro") }), "Agora escolha a sua foto para continuar.");
+  assert.equal(payHint({ ...base, frame: frameFailed("flavio-bolsonaro") }), FRAME_LOAD_ERROR);
+  assert.equal(payHint({ ...base, ready: true, photoReady: true, frame: frameLoaded("flavio-bolsonaro") }), "Você paga por Pix e baixa a foto em seguida.");
 });
 
 test("falha da moldura continua visível depois de escolher a foto (o bug antigo dizia 'Carregando' para sempre)", () => {
-  assert.equal(payHint({ ...base, photoReady: true, frame: frameFailed("zema") }), FRAME_LOAD_ERROR);
+  assert.equal(payHint({ ...base, photoReady: true, frame: frameFailed("flavio-bolsonaro") }), FRAME_LOAD_ERROR);
 });
 
 test("tentar de novo volta a carregando; status de outro candidato conta como carregando", () => {
-  const retried = frameLoading("zema");
+  const retried = frameLoading("flavio-bolsonaro");
 
   assert.equal(payHint({ ...base, photoReady: true, frame: retried }), "Carregando a moldura…");
   assert.equal(payHint({ ...base, photoReady: true, frame: frameFailed("lula") }), "Carregando a moldura…");

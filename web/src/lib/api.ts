@@ -2,6 +2,7 @@ import { OrderSchema } from "@moldura/common";
 import type { Framing, Order } from "@moldura/common";
 import { DEFAULT_API_ORIGIN, normalizeApiUrl } from "@/lib/origin";
 import { parseRetryAfter } from "@/lib/polling";
+import { loadSalesStatus } from "@/lib/sales";
 
 const API_URL = normalizeApiUrl(process.env.NEXT_PUBLIC_API_URL, DEFAULT_API_ORIGIN);
 
@@ -73,11 +74,17 @@ export async function createOrder(input: { candidateId: string; framing: Framing
   // A api só lê os campos de texto que vêm ANTES do arquivo.
   form.append("candidateId", input.candidateId);
   form.append("framing", JSON.stringify(input.framing));
+  // Consentimento (LGPD art. 11), marcado pela pessoa no /criar; vai antes da foto.
+  form.append("consent", "true");
   form.append("photo", input.photo);
 
   const response = await request(`${API_URL}/orders`, { method: "POST", body: form, referrerPolicy: "no-referrer" });
 
   return readOrder(response);
+}
+
+export async function getSalesStatus(): Promise<boolean> {
+  return loadSalesStatus(API_URL, (url, init) => fetch(url, init));
 }
 
 export async function getOrder(id: string): Promise<Order> {

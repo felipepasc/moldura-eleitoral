@@ -11,6 +11,7 @@ export function OperatorContact() {
       <h2 id="contato">Quem opera o site e como falar com a gente</h2>
       <p>
         Operador: <strong>{OPERATOR.name}</strong>
+        {OPERATOR.doc ? <> · {OPERATOR.doc}</> : null}
       </p>
       <p>
         Contato: <strong>{OPERATOR.email}</strong>{" "}

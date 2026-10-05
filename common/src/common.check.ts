@@ -31,19 +31,31 @@ test("placePhoto aplica zoom e deslocamento como fração do quadro", () => {
 test("findCandidate acha por id e devolve undefined para desconhecido", () => {
   assert.equal(findCandidate("lula")?.number, "13");
   assert.equal(findCandidate("ninguem"), undefined);
-  assert.equal(CANDIDATES.length, 12);
+  assert.equal(CANDIDATES.length, 2);
+  assert.equal(findCandidate("zema"), undefined);
 });
 
 test("CreateOrderSchema aceita pedido válido", () => {
-  const result = CreateOrderSchema.safeParse({ candidateId: "lula", framing: { zoom: 1.5, offsetX: 0, offsetY: 0 } });
+  const result = CreateOrderSchema.safeParse({ candidateId: "lula", framing: { zoom: 1.5, offsetX: 0, offsetY: 0 }, consent: "true" });
 
   assert.equal(result.success, true);
+});
+
+test("CreateOrderSchema exige o consentimento (consent = \"true\")", () => {
+  const base = { candidateId: "flavio-bolsonaro", framing: { zoom: 1, offsetX: 0, offsetY: 0 } };
+
+  assert.equal(CreateOrderSchema.safeParse(base).success, false);
+  assert.equal(CreateOrderSchema.safeParse({ ...base, consent: "false" }).success, false);
+  assert.equal(CreateOrderSchema.safeParse({ ...base, consent: true }).success, false);
+  assert.equal(CreateOrderSchema.safeParse({ ...base, consent: "" }).success, false);
+  assert.equal(CreateOrderSchema.safeParse({ ...base, consent: "true" }).success, true);
 });
 
 test("CreateOrderSchema rejeita candidato desconhecido, zoom e deslocamento fora da faixa", () => {
   const valid = { zoom: 1, offsetX: 0, offsetY: 0 };
 
-  assert.equal(CreateOrderSchema.safeParse({ candidateId: "x", framing: valid }).success, false);
+  assert.equal(CreateOrderSchema.safeParse({ candidateId: "x", framing: valid, consent: "true" }).success, false);
+  assert.equal(CreateOrderSchema.safeParse({ candidateId: "zema", framing: valid, consent: "true" }).success, false);
   assert.equal(CreateOrderSchema.safeParse({ candidateId: "lula", framing: { ...valid, zoom: 0.5 } }).success, false);
   assert.equal(CreateOrderSchema.safeParse({ candidateId: "lula", framing: { ...valid, zoom: 4 } }).success, false);
   assert.equal(CreateOrderSchema.safeParse({ candidateId: "lula", framing: { ...valid, offsetX: 2 } }).success, false);
@@ -60,10 +72,11 @@ function distance(a: string, b: string): number {
   return Math.hypot(ar - br, ag - bg, ab - bb);
 }
 
-test("há 12 presidentes com ids únicos e números únicos por cargo", () => {
+test("2º turno: só Lula (13) e Flávio Bolsonaro (22), ids e números únicos", () => {
   const presidents = candidatesBy("presidente");
 
-  assert.equal(presidents.length, 12);
+  assert.equal(presidents.length, 2);
+  assert.deepEqual(CANDIDATES.map((candidate) => candidate.id).sort(), ["flavio-bolsonaro", "lula"]);
   assert.equal(new Set(CANDIDATES.map((candidate) => candidate.id)).size, CANDIDATES.length);
   assert.equal(new Set(presidents.map((candidate) => candidate.number)).size, presidents.length);
 
@@ -73,8 +86,11 @@ test("há 12 presidentes com ids únicos e números únicos por cargo", () => {
   }
 });
 
-test("os seis candidatos originais mantêm id e número", () => {
-  const expected: Record<string, string> = { lula: "13", "flavio-bolsonaro": "22", "ronaldo-caiado": "55", zema: "30", samara: "80", "augusto-cury": "70" };
+test("os candidatos do 2º turno mantêm id, número e partido", () => {
+  const expected: Record<string, string> = { lula: "13", "flavio-bolsonaro": "22" };
+
+  assert.equal(findCandidate("lula")?.partyAcronym, "PT");
+  assert.equal(findCandidate("flavio-bolsonaro")?.partyAcronym, "PL");
 
   for (const [id, number] of Object.entries(expected)) {
     assert.equal(findCandidate(id)?.number, number);

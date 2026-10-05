@@ -48,6 +48,12 @@ export default function PrivacyPage() {
             </dd>
             <dt>A moldura escolhida e o enquadramento</dt>
             <dd>O candidato da moldura, o zoom e a posição da foto, para montar a imagem do jeito que você viu na prévia.</dd>
+            <dt>Seu consentimento</dt>
+            <dd>
+              Sua foto junto com a moldura de um candidato revela sua preferência política, que a LGPD trata como dado pessoal sensível. Por isso, antes de pagar, você
+              marca que autoriza o tratamento da foto e da moldura apenas para montar e entregar a imagem, e declara ter 18 anos ou mais (ou autorização do responsável
+              legal). Sem essas confirmações o pedido não é criado. Você pode pedir a exclusão a qualquer momento pelo contato abaixo.
+            </dd>
             <dt>Dados do pagamento por Pix</dt>
             <dd>
               A cobrança Pix é criada e processada pela AbacatePay. Guardamos só o necessário para conferir o pagamento (identificador e código da cobrança e o status).
@@ -102,9 +108,18 @@ export default function PrivacyPage() {
         <section aria-labelledby="operadores">
           <h2 id="operadores">Quem mais trata os dados</h2>
           <ul>
+            <li>Cloudflare: armazenamento da sua foto e da foto pronta (Cloudflare R2) e entrega do site (DNS e proxy).</li>
             <li>AbacatePay: cria e processa a cobrança Pix.</li>
-            <li>Provedor de hospedagem: onde rodam o site, o servidor e o armazenamento das imagens.</li>
+            <li>Provedor de hospedagem: onde rodam o site e o servidor.</li>
           </ul>
+        </section>
+
+        <section aria-labelledby="internacional">
+          <h2 id="internacional">Transferência internacional</h2>
+          <p>
+            A sua foto e a foto pronta ficam guardadas na Cloudflare (R2), que pode armazená-las em servidores fora do Brasil. Isso é uma transferência internacional de
+            dados (LGPD, art. 33), feita com um fornecedor que oferece garantias contratuais de proteção de dados, e só pelos prazos da tabela acima.
+          </p>
         </section>
 
         <section aria-labelledby="previa">

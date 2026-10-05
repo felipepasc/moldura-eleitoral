@@ -114,6 +114,7 @@ test("a moldura neutra passa no validador, não tem número e não é candidato"
   assert.equal(findCandidate("neutral"), undefined);
   assert.ok(!CANDIDATES.some((candidate) => candidate.id === "neutral"));
   assert.equal(CreateOrderSchema.shape.candidateId.safeParse("neutral").success, false);
+  assert.deepEqual(CANDIDATES.map((candidate) => candidate.id).sort(), ["flavio-bolsonaro", "lula"]);
 });
 
 for (const frame of [NEUTRAL_FRAME, EXEMPLO_FRAME]) {
@@ -155,14 +156,14 @@ test("o detector de cor de partido acusa uma paleta parecida", () => {
 
 test("Missão é amarelo e preto, com nome e número legíveis", () => {
   const party = findParty("MISSÃO");
-  const renan = findCandidate("renan-santos");
 
-  assert.ok(party && renan);
+  assert.ok(party);
   assert.equal(party.colors.primary.toLowerCase(), "#fdbf35");
   assert.equal(party.colors.secondary, "#000000");
   assert.equal(party.colors.accent, "#000000");
 
-  const svg = buildFrameSvg(renan).toLowerCase();
+  // Missão não está no 2º turno; o teste usa uma moldura avulsa com as cores do partido.
+  const svg = buildFrameSvg({ id: "teste-missao", frameName: "TESTE", number: "14", colors: [party.colors.primary, party.colors.secondary, party.colors.accent] }).toLowerCase();
 
   assert.ok(svg.includes('stroke="#fdbf35"'), "anel amarelo");
   assert.ok(svg.includes('fill="#000000"'), "texto preto sobre o amarelo");

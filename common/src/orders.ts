@@ -19,7 +19,10 @@ export type Framing = z.infer<typeof FramingSchema>;
 export const CreateOrderSchema = z.object({
   candidateId: z.string().refine((id) => findCandidate(id) !== undefined, "Candidato inválido"),
   framing: FramingSchema,
+  // Consentimento para tratar a foto e a moldura (dado sensível: revela preferência política).
+  consent: z.literal("true"),
 });
+export const CONSENT_REQUIRED_MESSAGE = "Confirme o consentimento para continuar.";
 export type CreateOrderBody = z.infer<typeof CreateOrderSchema>;
 
 export const OrderStatusSchema = z.enum(ORDER_STATUSES);

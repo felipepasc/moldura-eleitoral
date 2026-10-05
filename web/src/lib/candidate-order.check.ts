@@ -8,9 +8,7 @@ test("ordena por nome em pt-BR, sem diferenciar acento e caixa", () => {
   const names = sortCandidatesAlphabetically(CANDIDATES).map((candidate) => candidate.name);
 
   assert.equal(names.length, CANDIDATES.length);
-  assert.ok(names.indexOf("FLÁVIO BOLSONARO") < names.indexOf("HERTZ DIAS"));
-  assert.equal(names[0], "AUGUSTO CURY");
-  assert.equal(names[names.length - 1], "ZEMA");
+  assert.deepEqual(names, ["FLÁVIO BOLSONARO", "LULA"]);
 });
 
 test("acento e caixa não mudam a ordem", () => {

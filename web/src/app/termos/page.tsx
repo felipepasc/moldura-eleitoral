@@ -47,6 +47,7 @@ export default function TermsPage() {
         <section aria-labelledby="responsabilidade">
           <h2 id="responsabilidade">Sua responsabilidade</h2>
           <ul>
+            <li>Para fazer o pedido, você autoriza o tratamento da foto e da moldura escolhida (que revela preferência política) e declara ter 18 anos ou mais, ou autorização do responsável legal.</li>
             <li>Envie só fotos suas ou de quem autorizou o uso.</li>
             <li>Não envie conteúdo ilegal, ofensivo ou que viole direitos de outras pessoas.</li>
             <li>O uso da foto pronta, inclusive como manifestação política ou propaganda eleitoral, é de sua responsabilidade e deve seguir as regras eleitorais.</li>
