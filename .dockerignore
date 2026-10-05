@@ -1,0 +1,11 @@
+**/node_modules
+**/.next
+**/*.tsbuildinfo
+.env*
+!.env.example
+**/.env*
+!**/.env.example
+.git
+.superpowers
+docs
+*.log

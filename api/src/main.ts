@@ -30,6 +30,7 @@ async function main() {
     webhookSecret: env.ABACATEPAY_WEBHOOK_SECRET,
     webOrigin: env.WEB_ORIGIN,
     trustProxy: env.TRUST_PROXY,
+    salesEnabled: env.SALES_ENABLED,
     ordersPerMinute: 10,
   });
 

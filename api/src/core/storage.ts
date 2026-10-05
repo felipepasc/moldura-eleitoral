@@ -1,4 +1,5 @@
 import { Client } from "minio";
+import type { Logger } from "@/core/logger";
 import { env } from "@/core/env";
 import { logger } from "@/core/logger";
 
@@ -13,22 +14,64 @@ export interface Storage {
 const PHOTO_EXPIRY_DAYS = 4;
 const RESULT_EXPIRY_DAYS = 8;
 
-export function createMinioStorage(): Storage {
-  const bucket = env.MINIO_BUCKET;
-  const client = new Client({
-    endPoint: env.MINIO_ENDPOINT,
+export type StorageConfig = {
+  endpoint: string;
+  port: number;
+  useSSL: boolean;
+  region: string;
+  accessKey: string;
+  secretKey: string;
+  bucket: string;
+  logger?: Logger;
+};
+
+export type StorageClient = Pick<Client, "bucketExists" | "makeBucket" | "setBucketLifecycle" | "putObject" | "getObject" | "removeObject" | "presignedGetObject">;
+
+function configFromEnv(): StorageConfig {
+  return {
+    endpoint: env.MINIO_ENDPOINT,
     port: env.MINIO_PORT,
     useSSL: env.MINIO_USE_SSL,
+    region: env.MINIO_REGION,
     accessKey: env.MINIO_ACCESS_KEY,
     secretKey: env.MINIO_SECRET_KEY,
-  });
+    bucket: env.MINIO_BUCKET,
+  };
+}
+
+function errorCode(error: unknown): string | undefined {
+  return error && typeof error === "object" && "code" in error && typeof error.code === "string" ? error.code : undefined;
+}
+
+// Serve MinIO (dev) e Cloudflare R2 (produção): a mesma API S3, sempre em path-style.
+export function createMinioStorage(config: StorageConfig = configFromEnv(), injected?: StorageClient): Storage {
+  const bucket = config.bucket;
+  const log = config.logger ?? logger;
+  const client: StorageClient =
+    injected ??
+    new Client({
+      endPoint: config.endpoint,
+      port: config.port,
+      useSSL: config.useSSL,
+      region: config.region,
+      pathStyle: true,
+      accessKey: config.accessKey,
+      secretKey: config.secretKey,
+    });
 
   return {
     async ensureBucket() {
+      // Em produção as credenciais podem não ter permissão de criar bucket: só cria se faltar.
       const exists = await client.bucketExists(bucket);
 
       if (!exists) {
-        await client.makeBucket(bucket);
+        try {
+          await client.makeBucket(bucket);
+        } catch (error) {
+          log.error({ code: errorCode(error) }, "Não consegui criar o bucket; crie-o no provedor ou confira as permissões");
+
+          throw error;
+        }
       }
 
       try {
@@ -39,9 +82,7 @@ export function createMinioStorage(): Storage {
           ],
         });
       } catch (error) {
-        const code = error && typeof error === "object" && "code" in error && typeof error.code === "string" ? error.code : undefined;
-
-        logger.warn({ code }, "Não consegui configurar a expiração automática do bucket");
+        log.warn({ code: errorCode(error) }, "Não consegui configurar a expiração automática do bucket");
       }
     },
 

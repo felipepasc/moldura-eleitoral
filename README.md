@@ -20,14 +20,14 @@ O cliente vê a prévia grátis (com marca d'água), paga R$ 3,99 por Pix (Abaca
 
 ## Molduras
 
-Ficam em `api/assets/frames/<id>.png` (1080×1080, anel opaco, centro e cantos transparentes, sem rostos). `pnpm frames:build` (alias de `frames:placeholder` na api) regenera as 12 molduras provisórias com as cores do partido, o nome em arco e o número, tudo como caminhos de glifos (sem `<text>`, sem depender de fontes do sistema); as molduras finais são geradas pelo Codex e validadas por `pnpm --filter @moldura/api test`.
+Ficam em `api/assets/frames/<id>.png` (1080×1080, anel opaco, centro e cantos transparentes, sem rostos). `pnpm frames:build` (alias de `frames:placeholder` na api) regenera as molduras dos candidatos atuais (mais a neutra e a de exemplo) com as cores do partido, o nome em arco e o número, tudo como caminhos de glifos (sem `<text>`, sem depender de fontes do sistema); as molduras finais são geradas pelo Codex e validadas por `pnpm --filter @moldura/api test`.
 Os arquivos públicos `/frames/<id>.png` (servidos pelo web) são as molduras **sem** marca d'água, de propósito: são só o anel decorativo, sem a foto do cliente. A marca d'água existe apenas na prévia do navegador.
 
 ## Dados dos candidatos e partidos
 
 - Partidos: `common/src/parties.ts` (sigla, nome, número e três cores; sem logotipos). Os hex vêm de pesquisa em sites oficiais e Wikipédia em 03/10/2026; `colorsEstimated: true` marca cores que não vieram de manual de identidade (todas, exceto Solidariedade). PV e PCB não tiveram hex verificado e usam valores razoáveis. PMB agora é "Democrata" (35), PMN é "Mobiliza" (33); União Brasil (44) e PP (11) formam federação, mas mantêm número próprio.
-- Candidatos: `common/src/candidates.ts` com os 12 presidentes de 2026. **A lista veio de reportagens** (o site do TSE bloqueou a consulta automatizada): **conferir no DivulgaCand antes de publicar**. Leonardo Avalanche (PRTB) desistiu e não consta. As cores de cada candidato são derivadas do partido.
-- O site oferece **só molduras de presidente** (decisão do produto); governadores não são oferecidos. O modelo de dados continua pronto caso isso mude: `office` em `candidates.ts`, `common/src/states.ts` (27 UFs) e `candidatesBy(office, state)`.
+- Candidatos: `common/src/candidates.ts` com **só os dois candidatos do 2º turno de 2026: Lula (PT, 13) e Flávio Bolsonaro (PL, 22)**. Conferir no DivulgaCand antes de publicar. As cores de cada candidato são derivadas do partido; `PARTIES` continua com todos os partidos.
+- O site oferece **só molduras dos candidatos a presidente do 2º turno** (decisão do produto); governadores não são oferecidos. O modelo de dados continua pronto caso isso mude: `office` em `candidates.ts`, `common/src/states.ts` (27 UFs) e `candidatesBy(office, state)`.
 - Só dados públicos (nomes, números, partidos, cores): nada de e-mail, telefone, CPF ou endereço.
 
 ## Página inicial e ilustrações de IA
@@ -36,7 +36,9 @@ Os arquivos públicos `/frames/<id>.png` (servidos pelo web) são as molduras **
 - Ilustrações: `web/public/art/<id>.webp` (640×640), **estilizadas e geradas por IA** — não são fotos nem material oficial. Só entram as aprovadas; ao aprovar uma nova, copie o arquivo e acrescente o id em `ART_IDS` (`web/src/lib/art.ts`). Sem ilustração, o cartão mostra uma silhueta genérica com a moldura por cima.
 - Toda ilustração mostra o selo `AiBadge` ("IA", `aria-label` "Ilustração gerada por IA") no canto superior direito, e o aviso "Ilustrações geradas por IA, estilizadas — não são fotos nem material oficial das campanhas." aparece perto do topo da home e no rodapé. O selo é só para a arte do site: nunca vai sobre a foto do usuário.
 - Topo neutro: o hero sempre abre na moldura de exemplo `neutral` (grafite e cinzas, longe das cores de todos os partidos — testado —, "SUA FOTO AQUI", sem número; gerada pelo `frames:build`, mas não é candidato nem aceita em pedidos) e depois passa por todos os candidatos em ordem embaralhada a cada visita (`web/src/lib/hero-slides.ts`), 3,5 s cada. Com movimento reduzido fica no neutro. Os cartões e o `<select>` do `/criar` seguem a ordem alfabética (`sortCandidatesAlphabetically`). Sem `?c=` válido, o `/criar` não escolhe ninguém: mostra "Escolha uma moldura…", a moldura neutra com a silhueta e o botão de pagar fica desabilitado até escolher.
-- "Exemplos de molduras" mostra os 12 presidentes em ordem alfabética; em `/criar` o seletor de moldura é uma lista simples dos presidentes, também em ordem alfabética.
+- "Exemplos de molduras" mostra os dois candidatos do 2º turno em ordem alfabética; em `/criar` o seletor de moldura é uma lista simples deles (Flávio Bolsonaro, Lula).
+- Consentimento (LGPD art. 11, dado sensível: a moldura revela preferência política): em `/criar` o pagamento só libera com duas caixas marcadas (autorização do tratamento da foto e da moldura e declaração de 18 anos ou mais / autorização do responsável). O web envia `consent=true` no multipart (depois de `candidateId` e `framing`, antes da foto); a api recusa sem ele com 400 "Confirme o consentimento para continuar." (`CreateOrderSchema.consent`).
+- Vendas abertas/fechadas: `/criar` consulta uma vez `GET /public/status` (`{ salesEnabled }`, sem cache); se `false`, a prévia continua funcionando, o botão mostra "Vendas abertas em breve" e aparece "As vendas estão fechadas no momento."; se a consulta falhar, o site trata como aberto (a api recusa com 503 se estiver fechado).
 - Faixa de partidos: sigla, número e cor (sem logotipos); quando a cor do partido não dá contraste AA com o texto, ela é escurecida só o necessário (`swatch` em `web/src/lib/art.ts`).
 - `web/scripts/sync-frames.mjs` (predev/prebuild) copia os PNG de 1080 px e gera `public/frames/<id>.webp` de 480 px com `sharp` (devDependency do web); a home usa o WebP e o `/criar` continua com o PNG, que o canvas da prévia precisa.
 - Teste dos helpers: `pnpm test` (roda também os `web/src/lib/*.check.ts`).
@@ -57,7 +59,8 @@ O que isso NÃO impede: print pelo botão do celular, gravadores de tela, ferram
 ## Privacidade e termos (web)
 
 - `/privacidade` e `/termos` (links no rodapé) descrevem o que o site realmente faz: foto enviada só ao clicar em "Baixar foto pronta", prazos de exclusão, Pix pela AbacatePay sem pedir nome/CPF, IP não guardado (só em memória para limitar abusos), lista "Minhas molduras" no localStorage, sem cookies, análise, anúncios ou rastreadores. **Os textos são um rascunho inicial e precisam ser revisados pelo advogado do operador antes do lançamento.** Se a api mudar prazos ou dados guardados, atualize as duas páginas.
-- Variáveis do web (lidas no build; veja `web/.env.example`): `NEXT_PUBLIC_OPERATOR_NAME` (nome de quem opera o site) e `NEXT_PUBLIC_CONTACT_EMAIL` (e-mail para pedidos de LGPD e problemas com pagamento). Sem as duas, as páginas omitem o bloco de contato e o build mostra um aviso.
+- Variáveis do web (lidas no build; veja `web/.env.example`, que traz os valores de produção aprovados): `NEXT_PUBLIC_OPERATOR_NAME` (razão social), `NEXT_PUBLIC_OPERATOR_DOC` (CNPJ) e `NEXT_PUBLIC_CONTACT_EMAIL` (e-mail para LGPD e problemas com pagamento). A identificação aparece no rodapé de todas as páginas e no bloco de operador de `/privacidade` e `/termos`. Sem nome e e-mail, o rodapé e as páginas omitem o bloco e o build mostra um aviso. Endereço físico ainda não é exibido (decisão pendente do dono).
+- `/privacidade` informa o armazenamento na Cloudflare R2 (transferência internacional, LGPD art. 33), os operadores (Cloudflare, AbacatePay, hospedagem) e o consentimento.
 - Cabeçalhos do web: CSP, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY`, `nosniff`, `Permissions-Policy`, sem `X-Powered-By`; `Strict-Transport-Security` só em produção.
 - `pnpm test` também roda os testes dos helpers do web (`web/src/lib/*.check.ts`, via `tsx --test`).
 
@@ -115,16 +118,40 @@ Depois do pagamento, o navegador guarda em `localStorage` (chave `moldura:orders
 - O site envia `Content-Security-Policy` (ver `web/next.config.ts`): scripts e estilos só do próprio site (`'unsafe-inline'` é exigido pelo Next sem nonces), imagens do próprio site e da origem do MinIO, conexões só para a api.
 - Em produção defina `NEXT_PUBLIC_IMAGES_ORIGIN` (origem pública do MinIO, ex.: `https://files.exemplo.com.br`) e `NEXT_PUBLIC_API_URL` **antes do build**: os dois entram no CSP e no código do navegador. `NEXT_PUBLIC_IMAGES_ORIGIN` precisa ser igual, caractere por caractere, à origem dos links assinados (`localhost` é diferente de `127.0.0.1`); se for diferente, o CSP bloqueia a imagem e a página `/minhas` descarta o link. O valor é fixado no build, e o build avisa se ele estiver vazio ou inválido.
 
-## Produção: como subir a api
+## Produção (Coolify + Cloudflare)
 
-- Comando: `pnpm --filter @moldura/api start` (usa `tsx`, que é dependência da api; lê `api/.env` só se existir, então em produção injete as variáveis no ambiente). O caminho das molduras e das migrações é resolvido a partir do código, não do diretório de onde o processo foi iniciado.
+Domínios: `molduraeleitoral.com` e `www.molduraeleitoral.com` (web), `api.molduraeleitoral.com` (api). Os downloads saem do endpoint S3 do Cloudflare R2 (`https://<account_id>.r2.cloudflarestorage.com/<bucket>/results/<uuid>.png?X-Amz-...`, link assinado de curta duração). Duas aplicações no Coolify, build pack **Dockerfile**, contexto = raiz do repositório:
+
+- **api**: `Dockerfile` (raiz), porta 6600, healthcheck `/healthz`. Ao subir, roda as migrações (`db:setup`, que só confere `pg_database` e migra: funciona com um papel sem `CREATEDB` se o banco já existir) e inicia a api.
+- **web**: `deploy/web.Dockerfile`, porta 6610.
+
+### Variáveis da api (runtime)
+
+- Obrigatórias: `DATABASE_URL`, `WEB_ORIGIN` (`https://molduraeleitoral.com`; é a origem permitida no CORS, uma só), `MINIO_ENDPOINT`, `MINIO_PORT`, `MINIO_USE_SSL`, `MINIO_REGION`, `MINIO_BUCKET`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `ABACATEPAY_API_KEY`, `ABACATEPAY_WEBHOOK_SECRET` (16+ caracteres; `openssl rand -hex 24`), `TRUST_PROXY`, `SALES_ENABLED`.
+- Opcionais: `PORT` (6600), `LOG_LEVEL` (`info`; `warn` reduz o volume), `ABACATEPAY_BASE_URL`.
+- R2: `MINIO_ENDPOINT=<account_id>.r2.cloudflarestorage.com`, `MINIO_PORT=443`, `MINIO_USE_SSL=true`, `MINIO_REGION=auto`, `MINIO_BUCKET=<bucket>`, chaves de um token S3 do R2 com permissão de leitura/escrita no bucket (e, se possível, de ciclo de vida). O bucket já deve existir: a api só o cria se faltar. A api tenta aplicar a regra de expiração (`photos/` 4 dias, `results/` 8 dias); se o R2 recusar, só registra o aviso "Não consegui configurar a expiração automática do bucket" (configure a regra no painel do R2). Os links assinados usam path-style e a região `auto`.
+- `TRUST_PROXY=2`: o caminho é Cloudflare, depois Traefik (Coolify), depois a api. O `X-Forwarded-For` chega como `<cliente>, <IP da Cloudflare>`; com 2 saltos a api descarta os dois últimos e usa o cliente, e o par direto (o Traefik) precisa estar em rede privada. Isso só é seguro se o servidor de origem aceitar conexões **apenas dos IPs da Cloudflare** (firewall/Security Group); caso contrário alguém pode falar direto com o Traefik e forjar o cabeçalho. O IP é usado só em memória, para o limite de requisições. Confirme no ambiente real.
+- Webhook da AbacatePay: `https://api.molduraeleitoral.com/webhooks/abacatepay?webhookSecret=<ABACATEPAY_WEBHOOK_SECRET>` (cadastre a URL inteira no painel; o proxy não pode registrar a query string).
+
+### Variáveis do web (build args: valem no BUILD, não no runtime)
+
+`NEXT_PUBLIC_API_URL` (`https://api.molduraeleitoral.com`), `NEXT_PUBLIC_IMAGES_ORIGIN` (`https://<account_id>.r2.cloudflarestorage.com`, igual caractere por caractere à origem dos links assinados), `NEXT_PUBLIC_OPERATOR_NAME`, `NEXT_PUBLIC_OPERATOR_DOC`, `NEXT_PUBLIC_CONTACT_EMAIL`. No Coolify, marque-as como "Build Variable". Mudou um valor: refaça o build.
+
+### Abrir e fechar as vendas
+
+`SALES_ENABLED=true` abre e `false` fecha (o padrão em dev/testes é `true`; em produção comece com `false`). Mude a variável no Coolify e reinicie/redeploye a api. Fechado, `POST /orders` devolve 503 "As vendas estão fechadas no momento." antes de ler a foto, e `GET /public/status` devolve `{ "salesEnabled": false }` (o web lê esse endpoint). Pedidos já criados continuam sendo pagos, consultados e limpos normalmente.
+
+## Produção: detalhes da api
+
+- Fora do Docker: `pnpm --filter @moldura/api start` (usa `tsx`, que é dependência da api; lê `api/.env` só se existir, então em produção injete as variáveis no ambiente). O caminho das molduras e das migrações é resolvido a partir do código, não do diretório de onde o processo foi iniciado.
 - Antes da primeira subida e a cada deploy com migração: `pnpm --filter @moldura/api db:setup` (cria o banco se faltar e aplica `api/drizzle`).
 - Variáveis obrigatórias: `DATABASE_URL`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `ABACATEPAY_API_KEY`, `ABACATEPAY_WEBHOOK_SECRET` (16+ caracteres). Opcionais: `PORT`, `WEB_ORIGIN`, `TRUST_PROXY`, `MINIO_ENDPOINT`, `MINIO_PORT`, `MINIO_USE_SSL`, `MINIO_BUCKET`, `ABACATEPAY_BASE_URL`, `LOG_LEVEL` (`info` por padrão; `warn` em produção reduz o volume).
+- Imagem Docker: o `CMD` roda `tsx src/scripts/setup-db.ts` e `tsx src/main.ts` direto (sem corepack em tempo de execução). O MinIO do `docker-compose.yml` é fixado por digest (`minio/minio@sha256:…`, release `RELEASE.2025-09-07T16-13-09Z`), pois a tag não está mais disponível no Docker Hub.
 - Gerar segredos: `openssl rand -hex 24` (senhas do Postgres e do MinIO, segredo do webhook).
 
 ## Checklist de produção
 
-- Troque as credenciais de desenvolvimento do `docker-compose.yml` (Postgres e MinIO `moldura`/`moldura-secret`); o compose é só de desenvolvimento e fixa o MinIO em `RELEASE.2025-09-07T16-13-09Z` (a versão testada).
+- Troque as credenciais de desenvolvimento do `docker-compose.yml` (Postgres e MinIO `moldura`/`moldura-secret`); o compose é só de desenvolvimento e fixa o MinIO por digest (release `RELEASE.2025-09-07T16-13-09Z`, a versão testada).
 - TLS na api, no web e no MinIO: `MINIO_USE_SSL=true`. `MINIO_ENDPOINT` (e a porta) precisa ser o host público que o navegador alcança, porque os links de download assinados são assinados para esse host. HSTS e TLS ficam no proxy.
 - Usuário dedicado do MinIO, limitado ao bucket (não use o root).
 - Postgres e MinIO escutando só em localhost/rede privada. No Postgres: `log_statement=none`, sem log de parâmetros de consulta, e backups/snapshots com rotação de no máximo 7 dias (senão os pedidos apagados continuam existindo neles).

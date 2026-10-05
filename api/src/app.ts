@@ -7,6 +7,7 @@ import { PHOTO_MAX_BYTES } from "@moldura/common";
 import { trustHops } from "@/core/trust-proxy";
 import { badReq, notFound, serverErr, tooLarge } from "@/core/http-fastify";
 import type { OrderContext } from "@/modules/orders/context";
+import { publicRouter } from "@/modules/public/public.router";
 import { ordersRouter } from "@/modules/orders/routes/orders.router";
 import { webhookRouter } from "@/modules/payments/webhook.router";
 
@@ -18,6 +19,7 @@ export type AppDeps = {
   webhookSecret: string;
   webOrigin: string;
   trustProxy: number;
+  salesEnabled: boolean;
   ordersPerMinute: number;
   orderReadsPerMinute?: number;
   webhookPerMinute?: number;
@@ -36,6 +38,13 @@ export async function buildApp(deps: AppDeps) {
 
   app.addHook("onSend", async (_req, reply) => {
     reply.header("X-Content-Type-Options", "nosniff");
+  });
+
+  // Antes de ler o upload: com as vendas fechadas, nada do pedido chega a ser lido.
+  app.addHook("onRequest", async (req, reply) => {
+    if (!deps.salesEnabled && req.method === "POST" && req.url.split("?")[0] === "/orders") {
+      return reply.code(503).send({ error: "As vendas estão fechadas no momento." });
+    }
   });
 
   app.setErrorHandler((error: FastifyError, req, reply) => {
@@ -72,6 +81,7 @@ export async function buildApp(deps: AppDeps) {
 
   app.get("/healthz", async () => ({ ok: true }));
 
+  await app.register(publicRouter(deps.salesEnabled, deps.orderReadsPerMinute ?? DEFAULT_ORDER_READS_PER_MINUTE), { prefix: "/public" });
   await app.register(ordersRouter(deps.ctx, deps.ordersPerMinute, deps.orderReadsPerMinute ?? DEFAULT_ORDER_READS_PER_MINUTE), { prefix: "/orders" });
   await app.register(webhookRouter(deps.ctx, deps.webhookSecret, deps.webhookPerMinute ?? DEFAULT_WEBHOOK_PER_MINUTE), { prefix: "/webhooks" });
 

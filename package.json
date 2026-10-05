@@ -1,6 +1,7 @@
 {
   "name": "moldura-eleitoral",
   "private": true,
+  "packageManager": "pnpm@11.15.1",
   "engines": { "node": ">=22.9" },
   "scripts": {
     "dev:api": "pnpm --filter @moldura/api dev",

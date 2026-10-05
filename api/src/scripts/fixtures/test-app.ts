@@ -19,6 +19,7 @@ export type TestAppOptions = {
   orderReadsPerMinute?: number;
   webhookPerMinute?: number;
   trustProxy?: number;
+  salesEnabled?: boolean;
 };
 
 export async function createTestApp(options: TestAppOptions = {}) {
@@ -44,6 +45,7 @@ export async function createTestApp(options: TestAppOptions = {}) {
     webhookSecret: WEBHOOK_SECRET,
     webOrigin: "http://localhost:6610",
     trustProxy: options.trustProxy ?? 0,
+    salesEnabled: options.salesEnabled ?? true,
     ordersPerMinute: options.ordersPerMinute ?? 1000,
     orderReadsPerMinute: options.orderReadsPerMinute,
     webhookPerMinute: options.webhookPerMinute ?? 1000,
