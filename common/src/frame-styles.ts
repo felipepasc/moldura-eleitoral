@@ -11,7 +11,8 @@ export const FRAME_STYLES = [
   { id: "retro", name: "Retrô" },
   { id: "metalica", name: "Metálica" },
   { id: "torcida", name: "Torcida" },
-  { id: "estrela", name: "Estrela" },
+  // id "estrela" mantido para não quebrar links (?e=estrela) nem pedidos; o nome exibido é "Destaque".
+  { id: "estrela", name: "Destaque" },
 ] as const;
 
 export type FrameStyleId = (typeof FRAME_STYLES)[number]["id"];

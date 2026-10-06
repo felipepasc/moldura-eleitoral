@@ -163,7 +163,7 @@ test("OrderSchema: id é uuid e downloadUrl é URL http/https ou null", () => {
 
 test("FRAME_STYLES tem os 13 estilos, nesta ordem, e findFrameStyle acha por id", () => {
   assert.deepEqual(FRAME_STYLES.map((style) => style.id), ["classica", "faixa", "listras", "fina", "ondas", "geometrica", "campanha", "vibrante", "moderna", "retro", "metalica", "torcida", "estrela"]);
-  assert.deepEqual(FRAME_STYLES.slice(6).map((style) => style.name), ["Campanha", "Vibrante", "Moderna", "Retrô", "Metálica", "Torcida", "Estrela"]);
+  assert.deepEqual(FRAME_STYLES.slice(6).map((style) => style.name), ["Campanha", "Vibrante", "Moderna", "Retrô", "Metálica", "Torcida", "Destaque"]);
   assert.equal(frameFileName("flavio-bolsonaro", "estrela"), "flavio-bolsonaro--estrela.png");
   assert.equal(findFrameStyle("partido"), undefined);
   assert.equal(findFrameStyle("faixa")?.name, "Faixa");
