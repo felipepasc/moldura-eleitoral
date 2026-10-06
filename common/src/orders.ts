@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { findCandidate } from "./candidates";
+import { DEFAULT_FRAME_STYLE, FRAME_STYLE_IDS } from "./frame-styles";
 import { MAX_ZOOM } from "./framing";
 
 export const PRICE_CENTS = 399;
@@ -19,6 +20,8 @@ export type Framing = z.infer<typeof FramingSchema>;
 export const CreateOrderSchema = z.object({
   candidateId: z.string().refine((id) => findCandidate(id) !== undefined, "Candidato inválido"),
   framing: FramingSchema,
+  // Estilo da moldura; ausente (clientes antigos) vale a clássica.
+  frameStyle: z.enum(FRAME_STYLE_IDS).default(DEFAULT_FRAME_STYLE),
   // Consentimento para tratar a foto e a moldura (dado sensível: revela preferência política).
   consent: z.literal("true"),
 });

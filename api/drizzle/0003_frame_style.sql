@@ -1,0 +1,1 @@
+ALTER TABLE "orders" ADD COLUMN "frame_style" text;

@@ -477,3 +477,36 @@ test("POST /orders com consent = \"true\" antes da foto cria o pedido", async ()
   assert.equal(res.statusCode, 201);
   assert.equal(res.json().candidateId, "flavio-bolsonaro");
 });
+
+test("pedido com frameStyle faixa guarda o estilo e compõe com a moldura faixa", async () => {
+  const path = await import("node:path");
+  const { composeImage } = await import("@/modules/orders/services/compose");
+  const { normalizePhoto } = await import("@/modules/orders/services/photo");
+  const original = await photo();
+  const created = (await postOrder({ candidateId: "lula", framing: FRAMING, frameStyle: "faixa" }, { data: original, type: "image/jpeg" })).json();
+  t.gateway.statuses.set(t.gateway.created[0], "PAID");
+
+  const paid = (await t.app.inject({ method: "GET", url: `/orders/${created.id}` })).json();
+  const [row] = await t.db.select().from(orders).where(eq(orders.id, created.id));
+
+  assert.equal(paid.status, "paid");
+  assert.equal(row.frameStyle, "faixa");
+
+  const expected = await composeImage(await normalizePhoto(original), { zoom: 1, offsetX: 0, offsetY: 0 }, path.resolve("assets/frames/lula--faixa.png"));
+  const classica = await composeImage(await normalizePhoto(original), { zoom: 1, offsetX: 0, offsetY: 0 }, path.resolve("assets/frames/lula.png"));
+  const stored = t.storage.files.get(`results/${created.id}.png`);
+
+  assert.ok(stored);
+  assert.ok(stored.equals(expected));
+  assert.ok(!stored.equals(classica));
+});
+
+test("pedido sem frameStyle (cliente antigo) vale classica e estilo desconhecido é rejeitado", async () => {
+  const file = { data: await photo(), type: "image/jpeg" };
+  const old = await postOrder({ candidateId: "lula", framing: FRAMING }, file);
+  const [row] = await t.db.select().from(orders).where(eq(orders.id, old.json().id));
+
+  assert.equal(old.statusCode, 201);
+  assert.ok(row.frameStyle === null || row.frameStyle === "classica");
+  assert.equal((await postOrder({ candidateId: "lula", framing: FRAMING, frameStyle: "neon" }, file)).statusCode, 400);
+});

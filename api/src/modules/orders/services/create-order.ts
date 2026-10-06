@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { PIX_EXPIRES_SECONDS, PRICE_CENTS } from "@moldura/common";
-import type { Framing } from "@moldura/common";
+import { DEFAULT_FRAME_STYLE, PIX_EXPIRES_SECONDS, PRICE_CENTS } from "@moldura/common";
+import type { FrameStyleId, Framing } from "@moldura/common";
 import { orderRef } from "@/core/log-ref";
 import type { OrderContext } from "@/modules/orders/context";
 import { orders } from "@/modules/orders/schema";
@@ -21,6 +21,7 @@ async function removePhotoQuietly(ctx: OrderContext, orderId: string, key: strin
 export type CreateOrderInput = {
   candidateId: string;
   framing: Framing;
+  frameStyle?: FrameStyleId;
   photo: Buffer;
 };
 
@@ -56,6 +57,7 @@ export async function createOrder(ctx: OrderContext, input: CreateOrderInput): P
         candidateId: input.candidateId,
         photoKey,
         framing: input.framing,
+        frameStyle: input.frameStyle ?? DEFAULT_FRAME_STYLE,
         pixId: pix.id,
         pixBrCode: pix.brCode,
         pixBrCodeBase64: pix.brCodeBase64,

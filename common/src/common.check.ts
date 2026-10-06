@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CANDIDATES, CreateOrderSchema, FRAME_SIZE, OrderSchema, PARTIES, STATES, candidatesBy, findCandidate, findParty, innerRadius, placePhoto } from "./index";
+import { CANDIDATES, CreateOrderSchema, FRAME_SIZE, FRAME_STYLES, findFrameStyle, frameFileName, OrderSchema, PARTIES, STATES, candidatesBy, findCandidate, findParty, innerRadius, placePhoto } from "./index";
 
 test("innerRadius deixa 13% de anel de cada lado", () => {
   assert.equal(innerRadius(FRAME_SIZE), 540 - 140.4);
@@ -159,4 +159,25 @@ test("OrderSchema: id é uuid e downloadUrl é URL http/https ou null", () => {
   assert.equal(OrderSchema.safeParse({ ...order, downloadUrl: "javascript:alert(1)" }).success, false);
   assert.equal(OrderSchema.safeParse({ ...order, downloadUrl: "data:image/png;base64,AAA" }).success, false);
   assert.equal(OrderSchema.safeParse({ ...order, downloadUrl: "não é url" }).success, false);
+});
+
+test("FRAME_STYLES tem os quatro estilos e findFrameStyle acha por id", () => {
+  assert.deepEqual(FRAME_STYLES.map((style) => style.id), ["classica", "faixa", "listras", "fina", "ondas", "geometrica"]);
+  assert.equal(findFrameStyle("faixa")?.name, "Faixa");
+  assert.equal(findFrameStyle("xyz"), undefined);
+});
+
+test("frameFileName mantém o nome antigo para a clássica e usa -- nos demais", () => {
+  assert.equal(frameFileName("lula", "classica"), "lula.png");
+  assert.equal(frameFileName("flavio-bolsonaro", "faixa"), "flavio-bolsonaro--faixa.png");
+  assert.equal(frameFileName("lula", "fina"), "lula--fina.png");
+});
+
+test("CreateOrderSchema: frameStyle é opcional (padrão classica) e rejeita estilo desconhecido", () => {
+  const base = { candidateId: "lula", framing: { zoom: 1, offsetX: 0, offsetY: 0 }, consent: "true" };
+
+  assert.equal(CreateOrderSchema.parse(base).frameStyle, "classica");
+  assert.equal(CreateOrderSchema.parse({ ...base, frameStyle: "listras" }).frameStyle, "listras");
+  assert.equal(CreateOrderSchema.safeParse({ ...base, frameStyle: "neon" }).success, false);
+  assert.equal(CreateOrderSchema.parse({ ...base, frameStyle: "geometrica" }).frameStyle, "geometrica");
 });

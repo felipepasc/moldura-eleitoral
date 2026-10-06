@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { CANDIDATES, CreateOrderSchema, PARTIES, findCandidate, findParty } from "@moldura/common";
+import { CANDIDATES, CreateOrderSchema, FRAME_STYLES, PARTIES, findCandidate, findParty, frameFileName } from "@moldura/common";
 import { EXEMPLO_FRAME, NEUTRAL_FRAME, buildFrameSvg, missingGlyphs, renderPlaceholderFrame, validateFrame } from "@/scripts/placeholder-frame";
 
 const FRAMES_DIR = path.resolve("assets/frames");
@@ -97,12 +97,34 @@ test("o validador acusa moldura com centro opaco", async () => {
 });
 
 for (const candidate of CANDIDATES) {
-  test(`assets/frames/${candidate.id}.png existe e é válida`, async () => {
-    const png = await readFile(path.join(FRAMES_DIR, `${candidate.id}.png`));
+  for (const style of FRAME_STYLES) {
+    test(`assets/frames/${frameFileName(candidate.id, style.id)} existe e é válida`, async () => {
+      const png = await readFile(path.join(FRAMES_DIR, frameFileName(candidate.id, style.id)));
 
-    assert.deepEqual(await validateFrame(png), []);
-  });
+      assert.deepEqual(await validateFrame(png), []);
+    });
+
+    test(`estilo ${style.id} de ${candidate.id}: só glifos, nome longo cabe e o selo não toca o disco`, async () => {
+      const svg = buildFrameSvg(candidate, style.id);
+
+      assert.ok(!svg.includes("<text"));
+      assert.ok(!svg.includes("<image"));
+      assert.deepEqual(await validateFrame(await renderPlaceholderFrame(candidate, style.id)), []);
+    });
+  }
 }
+
+test("os estilos geram imagens diferentes entre si", async () => {
+  for (const candidate of CANDIDATES) {
+    const files = await Promise.all(FRAME_STYLES.map((style) => readFile(path.join(FRAMES_DIR, frameFileName(candidate.id, style.id)))));
+
+    for (let first = 0; first < files.length; first += 1) {
+      for (let second = first + 1; second < files.length; second += 1) {
+        assert.ok(!files[first].equals(files[second]), `${candidate.id}: estilos ${first} e ${second} iguais`);
+      }
+    }
+  }
+});
 
 test("a moldura neutra passa no validador, não tem número e não é candidato", async () => {
   const png = await readFile(path.join(FRAMES_DIR, `${NEUTRAL_FRAME.id}.png`));

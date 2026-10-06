@@ -58,6 +58,7 @@ export function ordersRouter(ctx: OrderContext, ordersPerMinute: number, readsPe
       const fields = {
         candidateId: fieldValue(file.fields.candidateId),
         framing: parseJson(fieldValue(file.fields.framing)),
+        frameStyle: fieldValue(file.fields.frameStyle),
         consent: fieldValue(file.fields.consent),
       };
 
@@ -75,7 +76,7 @@ export function ordersRouter(ctx: OrderContext, ordersPerMinute: number, readsPe
       const photo = await file.toBuffer();
 
       try {
-        const row = await createOrder(ctx, { candidateId: parsed.data.candidateId, framing: parsed.data.framing, photo });
+        const row = await createOrder(ctx, { candidateId: parsed.data.candidateId, framing: parsed.data.framing, frameStyle: parsed.data.frameStyle, photo });
         const view = await toOrderView(ctx, row);
 
         return created(reply, view);
