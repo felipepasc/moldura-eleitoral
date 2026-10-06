@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { FRAME_STYLES, candidatesBy, findParty } from "@moldura/common";
+import { FRAME_STYLES, PARTY_FRAME_STYLE, candidatesBy, findParty } from "@moldura/common";
 import { Reveal } from "@/components/Reveal";
 import { FramedPortrait } from "@/components/home/FramedPortrait";
 import { displayName, hasArt } from "@/lib/art";
@@ -7,6 +7,8 @@ import { sortCandidatesAlphabetically } from "@/lib/candidate-order";
 
 // O site oferece só as molduras dos candidatos do 2º turno (decisão do produto).
 const PRESIDENTS = sortCandidatesAlphabetically(candidatesBy("presidente"));
+// A home não conta o estilo com o símbolo do partido (pode estar desligado).
+const STYLE_COUNT = FRAME_STYLES.filter((style) => style.id !== PARTY_FRAME_STYLE).length;
 
 export function CandidateGrid() {
   return (
@@ -26,14 +28,14 @@ export function CandidateGrid() {
 
             return (
               <Reveal key={candidate.id} as="li" delay={(index % 6) * 70}>
-                <Link className="cand-card" href={`/criar?c=${candidate.id}`} aria-label={`Usar a moldura de ${name}, número ${candidate.number}${party ? `, ${party.acronym}` : ""}. Moldura pronta, ${FRAME_STYLES.length} estilos${hasArt(candidate.id) ? ". Ilustração gerada por IA" : ""}`}>
+                <Link className="cand-card" href={`/criar?c=${candidate.id}`} aria-label={`Usar a moldura de ${name}, número ${candidate.number}${party ? `, ${party.acronym}` : ""}. Moldura pronta, ${STYLE_COUNT} estilos${hasArt(candidate.id) ? ". Ilustração gerada por IA" : ""}`}>
                   <FramedPortrait id={candidate.id} name={candidate.name} />
                   <b className="card-name">{name}</b>
                   <span className="card-meta">
                     Número {candidate.number}
                     {party ? <span className="card-party"> · {party.acronym}</span> : null}
                   </span>
-                  <span className="card-styles">{FRAME_STYLES.length} estilos de moldura</span>
+                  <span className="card-styles">{STYLE_COUNT} estilos de moldura</span>
                   <span className="chip-ready">
                     <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
                       <circle cx="10" cy="10" r="9" fill="currentColor" />

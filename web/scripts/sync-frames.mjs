@@ -9,7 +9,9 @@ const SMALL_SIZE = 480;
 // Começa do zero: molduras de candidatos removidos (PNG e WebP) não ficam para trás.
 await rm(target, { recursive: true, force: true });
 await mkdir(target, { recursive: true });
-await cp(source, target, { recursive: true });
+// Moldura com o símbolo do partido só vai para o site com PUBLISH_PARTY_FRAMES=true no build (e PARTY_STYLE_ENABLED=true na api).
+const publishPartyFrames = process.env.PUBLISH_PARTY_FRAMES === "true";
+await cp(source, target, { recursive: true, filter: (path) => publishPartyFrames || !path.endsWith("--partido.png") });
 
 // Versões pequenas (480 px, WebP) para a home; o /criar continua usando o PNG de 1080 px.
 const pngs = (await readdir(target)).filter((file) => file.endsWith(".png"));
