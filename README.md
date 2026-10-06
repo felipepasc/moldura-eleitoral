@@ -70,7 +70,7 @@ O texto das molduras usa a Montserrat ExtraBold (subconjunto latin, `api/assets/
 
 ## Woovi (gateway de Pix padrão)
 
-`PIX_GATEWAY=woovi` (padrão). A api fala com a Woovi por `fetch` puro (sem SDK): `POST /api/v1/charge?return_existing=true` (o `correlationID` é o id do pedido, `value` em centavos, `expiresIn` de no mínimo 300 s) e `GET /api/v1/charge/{id}`. O header é `Authorization: <AppID>` (sem `Bearer`). Status: `ACTIVE` vira pendente, `COMPLETED` vira pago, `EXPIRED` vira expirado e qualquer outro valor vira pendente (nunca se infere pago). O QR code é gerado na api a partir do `brCode` (PNG local, sem usar a imagem hospedada pela Woovi).
+`PIX_GATEWAY=woovi` (padrão). A api fala com a Woovi por `fetch` puro (sem SDK): `POST /api/v1/charge?return_existing=true` (o `correlationID` é uma referência aleatória própria, nunca o id do pedido, que é a credencial do download; `value` em centavos, `expiresIn` de no mínimo 300 s) e `GET /api/v1/charge/{id}`. O header é `Authorization: <AppID>` (sem `Bearer`). Status: `ACTIVE` vira pendente, `COMPLETED` vira pago, `EXPIRED` vira expirado e qualquer outro valor vira pendente (nunca se infere pago). O QR code é gerado na api a partir do `brCode` (PNG local, sem usar a imagem hospedada pela Woovi).
 
 - Variáveis: `WOOVI_APP_ID` (obrigatória), `WOOVI_BASE_URL` (`https://api.woovi.com`; sandbox `https://api.woovi-sandbox.com`), `WOOVI_WEBHOOK_PUBLIC_KEY` (opcional; a chave pública oficial já vem embutida).
 - Sandbox: crie a conta em `https://app.woovi-sandbox.com/` (cadastro separado da produção), gere o AppID em Admin > API/Plugins e use `WOOVI_BASE_URL=https://api.woovi-sandbox.com`. Pague a cobrança de teste pelo painel/link de pagamento do sandbox.
