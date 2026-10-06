@@ -4,6 +4,8 @@ import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import rateLimit from "@fastify/rate-limit";
 import { PHOTO_MAX_BYTES } from "@moldura/common";
+import { isInBlackout } from "@/core/blackout";
+import type { Blackout } from "@/core/blackout";
 import { trustHops } from "@/core/trust-proxy";
 import { badReq, notFound, serverErr, tooLarge } from "@/core/http-fastify";
 import type { OrderContext } from "@/modules/orders/context";
@@ -31,6 +33,7 @@ export type AppDeps = {
   webOrigin: string;
   trustProxy: number;
   salesEnabled: boolean;
+  salesBlackout?: Blackout[];
   ordersPerMinute: number;
   orderReadsPerMinute?: number;
   webhookPerMinute?: number;
@@ -42,6 +45,9 @@ export async function buildApp(deps: AppDeps) {
     trustProxy: trustHops(deps.trustProxy),
     bodyLimit: PHOTO_MAX_BYTES + 1024 * 1024,
   });
+
+  // Vendas abertas = chave ligada e fora de qualquer janela de blackout (relógio injetável).
+  const salesOpen = () => deps.salesEnabled && !isInBlackout(deps.salesBlackout ?? [], deps.ctx.now());
 
   await app.register(cors, { origin: parseOrigins(deps.webOrigin), exposedHeaders: ["Retry-After"] });
   await app.register(rateLimit, { global: false });
@@ -85,8 +91,8 @@ export async function buildApp(deps: AppDeps) {
 
   app.get("/healthz", async () => ({ ok: true }));
 
-  await app.register(publicRouter(deps.salesEnabled, deps.orderReadsPerMinute ?? DEFAULT_ORDER_READS_PER_MINUTE), { prefix: "/public" });
-  await app.register(ordersRouter(deps.ctx, deps.ordersPerMinute, deps.orderReadsPerMinute ?? DEFAULT_ORDER_READS_PER_MINUTE, deps.salesEnabled), { prefix: "/orders" });
+  await app.register(publicRouter(salesOpen, deps.orderReadsPerMinute ?? DEFAULT_ORDER_READS_PER_MINUTE), { prefix: "/public" });
+  await app.register(ordersRouter(deps.ctx, deps.ordersPerMinute, deps.orderReadsPerMinute ?? DEFAULT_ORDER_READS_PER_MINUTE, salesOpen), { prefix: "/orders" });
   const webhookPerMinute = deps.webhookPerMinute ?? DEFAULT_WEBHOOK_PER_MINUTE;
 
   if (deps.webhookSecret) {

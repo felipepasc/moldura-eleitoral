@@ -31,10 +31,10 @@ function parseJson(text: string | undefined): unknown {
   }
 }
 
-export function ordersRouter(ctx: OrderContext, ordersPerMinute: number, readsPerMinute: number, salesEnabled: boolean): FastifyPluginAsync {
+export function ordersRouter(ctx: OrderContext, ordersPerMinute: number, readsPerMinute: number, isSalesOpen: () => boolean): FastifyPluginAsync {
   // Na própria rota (vale para toda grafia que o Fastify roteia para cá) e antes de ler o upload.
   const closedSalesGate: onRequestAsyncHookHandler = async (_req, reply) => {
-    if (!salesEnabled) {
+    if (!isSalesOpen()) {
       return reply.code(503).send({ error: "As vendas estão fechadas no momento." });
     }
   };

@@ -154,6 +154,8 @@ Domínios: `molduraeleitoral.com` e `www.molduraeleitoral.com` (web), `api.moldu
 
 `SALES_ENABLED=true` abre e `false` fecha (o padrão em dev/testes é `true`; em produção comece com `false`). Mude a variável no Coolify e reinicie/redeploye a api. Fechado, `POST /orders` devolve 503 "As vendas estão fechadas no momento." antes de ler a foto, e `GET /public/status` devolve `{ "salesEnabled": false }` (o web lê esse endpoint). Pedidos já criados continuam sendo pagos, consultados e limpos normalmente.
 
+**Blackout automático** (`SALES_BLACKOUT`): lista de intervalos `início/fim` em ISO-8601 com fuso explícito, separados por vírgula, por exemplo `2026-10-25T00:00:00-03:00/2026-10-26T17:00:00-03:00`. As vendas só ficam abertas quando `SALES_ENABLED=true` **e** o horário atual está fora de todos os intervalos (início inclusivo, fim exclusivo). Sem a variável vale o padrão acima (dia da eleição do 2º turno, até 17h de terça); string vazia desliga o blackout; valor inválido impede a api de subir, com mensagem clara. Durante a janela `POST /orders` devolve 503 e `GET /public/status` devolve `salesEnabled: false`; webhooks, `GET /orders/:id`, a limpeza e a liberação de pedidos já pagos seguem normais.
+
 ## Produção: detalhes da api
 
 - Fora do Docker: `pnpm --filter @moldura/api start` (usa `tsx`, que é dependência da api; lê `api/.env` só se existir, então em produção injete as variáveis no ambiente). O caminho das molduras e das migrações é resolvido a partir do código, não do diretório de onde o processo foi iniciado.

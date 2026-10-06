@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, test } from "node:test";
 import assert from "node:assert/strict";
 import { orders } from "@/modules/orders/schema";
+import { parseBlackout } from "@/core/blackout";
 import { createTestApp } from "@/scripts/fixtures/test-app";
 import type { TestApp } from "@/scripts/fixtures/test-app";
 
@@ -100,4 +101,54 @@ test("SALES_ENABLED sem valor fecha as vendas (fail-closed)", async () => {
   assert.equal(parseEnv(base).SALES_ENABLED, false);
   assert.equal(parseEnv({ ...base, SALES_ENABLED: "true" }).SALES_ENABLED, true);
   assert.equal(parseEnv({ ...base, SALES_ENABLED: "false" }).SALES_ENABLED, false);
+});
+
+const WINDOW = parseBlackout("2026-10-25T00:00:00-03:00/2026-10-26T17:00:00-03:00");
+
+async function appAt(iso: string, salesEnabled = true) {
+  await t.close();
+  const clock = new Date(iso);
+  t = await createTestApp({ salesEnabled, salesBlackout: WINDOW, now: () => clock });
+}
+
+test("dentro da janela de blackout POST /orders devolve 503 e /public/status fecha", async () => {
+  await appAt("2026-10-25T12:00:00-03:00");
+
+  const res = await postOrder(t.app);
+  const status = await t.app.inject({ method: "GET", url: "/public/status" });
+
+  assert.equal(res.statusCode, 503);
+  assert.deepEqual(res.json(), { error: "As vendas estão fechadas no momento." });
+  assert.deepEqual(status.json(), { salesEnabled: false });
+  assert.equal(t.gateway.created.length, 0);
+});
+
+test("antes e depois da janela as vendas seguem abertas; as bordas valem início inclusivo e fim exclusivo", async () => {
+  for (const [iso, open] of [
+    ["2026-10-24T23:59:59-03:00", true],
+    ["2026-10-25T00:00:00-03:00", false],
+    ["2026-10-26T16:59:59-03:00", false],
+    ["2026-10-26T17:00:00-03:00", true],
+  ] as const) {
+    await appAt(iso);
+
+    const status = await t.app.inject({ method: "GET", url: "/public/status" });
+    const res = await postOrder(t.app);
+
+    assert.deepEqual(status.json(), { salesEnabled: open }, iso);
+    assert.equal(res.statusCode === 503, !open, iso);
+  }
+});
+
+test("SALES_ENABLED=false fecha mesmo fora da janela", async () => {
+  await appAt("2026-11-10T12:00:00-03:00", false);
+
+  assert.deepEqual((await t.app.inject({ method: "GET", url: "/public/status" })).json(), { salesEnabled: false });
+});
+
+test("durante o blackout webhook, GET do pedido e liberação continuam funcionando", async () => {
+  await appAt("2026-10-25T12:00:00-03:00");
+
+  assert.equal((await t.app.inject({ method: "GET", url: "/orders/6b1f9a52-5a43-4d52-8d52-0a8f2f0a0000" })).statusCode, 404);
+  assert.equal((await t.app.inject({ method: "POST", url: "/webhooks/abacatepay?webhookSecret=x", payload: { event: "x" } })).statusCode, 401);
 });

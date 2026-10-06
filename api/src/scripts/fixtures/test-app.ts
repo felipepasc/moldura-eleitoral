@@ -2,6 +2,7 @@ import { generateKeyPairSync, sign } from "node:crypto";
 import path from "node:path";
 import type { DestinationStream } from "pino";
 import { buildApp } from "@/app";
+import type { Blackout } from "@/core/blackout";
 import { createDb } from "@/core/db";
 import { createLogger } from "@/core/logger";
 import type { OrderContext } from "@/modules/orders/context";
@@ -32,6 +33,7 @@ export type TestAppOptions = {
   trustProxy?: number;
   salesEnabled?: boolean;
   webOrigin?: string;
+  salesBlackout?: Blackout[];
 };
 
 export async function createTestApp(options: TestAppOptions = {}) {
@@ -59,6 +61,7 @@ export async function createTestApp(options: TestAppOptions = {}) {
     webOrigin: options.webOrigin ?? "http://localhost:6610",
     trustProxy: options.trustProxy ?? 0,
     salesEnabled: options.salesEnabled ?? true,
+    salesBlackout: options.salesBlackout ?? [],
     ordersPerMinute: options.ordersPerMinute ?? 1000,
     orderReadsPerMinute: options.orderReadsPerMinute,
     webhookPerMinute: options.webhookPerMinute ?? 1000,

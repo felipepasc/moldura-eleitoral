@@ -43,6 +43,7 @@ async function main() {
     webOrigin: env.WEB_ORIGIN,
     trustProxy: env.TRUST_PROXY,
     salesEnabled: env.SALES_ENABLED,
+    salesBlackout: env.SALES_BLACKOUT,
     ordersPerMinute: 10,
   });
 

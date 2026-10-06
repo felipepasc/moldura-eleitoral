@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DEFAULT_SALES_BLACKOUT, parseBlackout } from "@/core/blackout";
 
 const BooleanFlag = z
   .enum(["true", "false"])
@@ -28,6 +29,8 @@ const EnvSchema = z
     TRUST_PROXY: ProxyHops,
     // Fail-closed: sem valor explícito as vendas ficam fechadas.
     SALES_ENABLED: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
+    // Intervalos início/fim (ISO com fuso, separados por vírgula); vazio = sem blackout; inválido derruba a subida.
+    SALES_BLACKOUT: z.string().default(DEFAULT_SALES_BLACKOUT).transform((value) => parseBlackout(value)),
     MINIO_ENDPOINT: z.string().default("localhost"),
     MINIO_PORT: z.coerce.number().default(9300),
     MINIO_USE_SSL: BooleanFlag,
@@ -54,7 +57,7 @@ const EnvSchema = z
   });
 
 export function parseEnv(source: Record<string, string | undefined>) {
-  const present = Object.fromEntries(Object.entries(source).filter(([, value]) => value !== undefined && value !== ""));
+  const present = Object.fromEntries(Object.entries(source).filter(([key, value]) => value !== undefined && (value !== "" || key === "SALES_BLACKOUT")));
 
   return EnvSchema.parse(present);
 }
