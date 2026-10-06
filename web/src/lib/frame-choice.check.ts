@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { FRAME_LOAD_ERROR, canSubmit, frameKey, frameThumbSrc, initialFrameStyle, frameFailed, frameLoaded, frameLoading, initialCandidateId, isFrameReady, payHint, previewFrameSrc } from "./frame-choice";
+import { FRAME_LOAD_ERROR, availableFrameStyles, canSubmit, frameKey, frameThumbSrc, initialFrameStyle, resolveFrameStyle, frameFailed, frameLoaded, frameLoading, initialCandidateId, isFrameReady, payHint, previewFrameSrc } from "./frame-choice";
 
 test("sem ?c= válido, nenhuma moldura vem escolhida (nada de pré-selecionar o primeiro candidato)", () => {
   assert.equal(initialCandidateId(undefined), "");
@@ -124,4 +124,15 @@ test("o status da moldura é por candidato + estilo: pronta em outro estilo não
   assert.equal(isFrameReady(frameLoaded(ondas), ondas), true);
   assert.equal(payHint({ candidateId: "lula", frameId: ondas, photoReady: true, ready: false, frame: frameLoaded("lula") }), "Carregando a moldura…");
   assert.equal(payHint({ candidateId: "lula", frameId: ondas, photoReady: true, ready: false, frame: frameFailed(ondas) }), FRAME_LOAD_ERROR);
+});
+
+test("estilo do partido: some da lista e o link ?e=partido cai na clássica quando está desligado", () => {
+  assert.equal(availableFrameStyles(true).length, 13);
+  assert.equal(availableFrameStyles(true).at(-1)?.id, "partido");
+  assert.equal(availableFrameStyles(false).length, 12);
+  assert.ok(!availableFrameStyles(false).some((style) => style.id === "partido"));
+  assert.equal(initialFrameStyle("partido"), "partido");
+  assert.equal(resolveFrameStyle("partido", false), "classica");
+  assert.equal(resolveFrameStyle("partido", true), "partido");
+  assert.equal(resolveFrameStyle("metalica", false), "metalica");
 });

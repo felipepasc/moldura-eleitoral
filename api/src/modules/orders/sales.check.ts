@@ -41,11 +41,11 @@ test("com as vendas fechadas POST /orders devolve 503 e não grava nada", async 
   assert.equal((await t.db.select().from(orders)).length, 0);
 });
 
-test("GET /public/status devolve só salesEnabled, no-store e CORS", async () => {
+test("GET /public/status devolve salesEnabled e partyStyleEnabled, no-store e CORS", async () => {
   const res = await t.app.inject({ method: "GET", url: "/public/status", headers: { origin: "http://localhost:6610" } });
 
   assert.equal(res.statusCode, 200);
-  assert.deepEqual(res.json(), { salesEnabled: false });
+  assert.deepEqual(res.json(), { salesEnabled: false, partyStyleEnabled: true });
   assert.equal(res.headers["cache-control"], "no-store");
   assert.equal(res.headers["access-control-allow-origin"], "http://localhost:6610");
 });
@@ -54,7 +54,7 @@ test("GET /public/status respeita o limite de leituras", async () => {
   await t.close();
   t = await createTestApp({ salesEnabled: true, orderReadsPerMinute: 2 });
 
-  assert.deepEqual((await t.app.inject({ method: "GET", url: "/public/status" })).json(), { salesEnabled: true });
+  assert.deepEqual((await t.app.inject({ method: "GET", url: "/public/status" })).json(), { salesEnabled: true, partyStyleEnabled: true });
   assert.equal((await t.app.inject({ method: "GET", url: "/public/status" })).statusCode, 200);
   assert.equal((await t.app.inject({ method: "GET", url: "/public/status" })).statusCode, 429);
 });
@@ -119,7 +119,7 @@ test("dentro da janela de blackout POST /orders devolve 503 e /public/status fec
 
   assert.equal(res.statusCode, 503);
   assert.deepEqual(res.json(), { error: "As vendas estão fechadas no momento." });
-  assert.deepEqual(status.json(), { salesEnabled: false });
+  assert.deepEqual(status.json(), { salesEnabled: false, partyStyleEnabled: true });
   assert.equal(t.gateway.created.length, 0);
 });
 
@@ -135,7 +135,7 @@ test("antes e depois da janela as vendas seguem abertas; as bordas valem início
     const status = await t.app.inject({ method: "GET", url: "/public/status" });
     const res = await postOrder(t.app);
 
-    assert.deepEqual(status.json(), { salesEnabled: open }, iso);
+    assert.deepEqual(status.json(), { salesEnabled: open, partyStyleEnabled: true }, iso);
     assert.equal(res.statusCode === 503, !open, iso);
   }
 });
@@ -143,7 +143,7 @@ test("antes e depois da janela as vendas seguem abertas; as bordas valem início
 test("SALES_ENABLED=false fecha mesmo fora da janela", async () => {
   await appAt("2026-11-10T12:00:00-03:00", false);
 
-  assert.deepEqual((await t.app.inject({ method: "GET", url: "/public/status" })).json(), { salesEnabled: false });
+  assert.deepEqual((await t.app.inject({ method: "GET", url: "/public/status" })).json(), { salesEnabled: false, partyStyleEnabled: true });
 });
 
 test("durante o blackout webhook, GET do pedido e liberação continuam funcionando", async () => {
@@ -151,4 +151,11 @@ test("durante o blackout webhook, GET do pedido e liberação continuam funciona
 
   assert.equal((await t.app.inject({ method: "GET", url: "/orders/6b1f9a52-5a43-4d52-8d52-0a8f2f0a0000" })).statusCode, 404);
   assert.equal((await t.app.inject({ method: "POST", url: "/webhooks/abacatepay?webhookSecret=x", payload: { event: "x" } })).statusCode, 401);
+});
+
+test("GET /public/status informa partyStyleEnabled false quando o estilo do partido está desligado", async () => {
+  await t.close();
+  t = await createTestApp({ salesEnabled: true, partyStyleEnabled: false });
+
+  assert.deepEqual((await t.app.inject({ method: "GET", url: "/public/status" })).json(), { salesEnabled: true, partyStyleEnabled: false });
 });

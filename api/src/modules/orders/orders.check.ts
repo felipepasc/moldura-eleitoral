@@ -510,3 +510,29 @@ test("pedido sem frameStyle (cliente antigo) vale classica e estilo desconhecido
   assert.ok(row.frameStyle === null || row.frameStyle === "classica");
   assert.equal((await postOrder({ candidateId: "lula", framing: FRAMING, frameStyle: "neon" }, file)).statusCode, 400);
 });
+
+test("estilo do partido desligado: POST /orders com frameStyle partido devolve 400 e não cria nada; outros estilos seguem", async () => {
+  await t.close();
+  t = await createTestApp({ partyStyleEnabled: false });
+
+  const refused = await postOrder({ candidateId: "lula", framing: FRAMING, frameStyle: "partido" }, { data: await photo(), type: "image/jpeg" });
+
+  assert.equal(refused.statusCode, 400);
+  assert.deepEqual(refused.json(), { error: "Este estilo não está disponível." });
+  assert.equal(t.gateway.created.length, 0);
+  assert.equal((await t.db.select().from(orders)).length, 0);
+
+  const other = await postOrder({ candidateId: "lula", framing: FRAMING, frameStyle: "metalica" }, { data: await photo(), type: "image/jpeg" });
+
+  assert.equal(other.statusCode, 201);
+});
+
+test("estilo do partido ligado (padrão): POST /orders com frameStyle partido cria o pedido", async () => {
+  const res = await postOrder({ candidateId: "flavio-bolsonaro", framing: FRAMING, frameStyle: "partido" }, { data: await photo(), type: "image/jpeg" });
+
+  assert.equal(res.statusCode, 201);
+
+  const [row] = await t.db.select().from(orders).where(eq(orders.id, res.json().id));
+
+  assert.equal(row.frameStyle, "partido");
+});

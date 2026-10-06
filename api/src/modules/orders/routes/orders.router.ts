@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync, onRequestAsyncHookHandler } from "fastify";
 import { z } from "zod";
-import { CONSENT_REQUIRED_MESSAGE, CreateOrderSchema, PHOTO_MIME_TYPES } from "@moldura/common";
+import { CONSENT_REQUIRED_MESSAGE, CreateOrderSchema, PARTY_FRAME_STYLE, PARTY_STYLE_UNAVAILABLE_MESSAGE, PHOTO_MIME_TYPES } from "@moldura/common";
 import { badGateway, badReq, created, notFound, ok } from "@/core/http-fastify";
 import type { OrderContext } from "@/modules/orders/context";
 import { GatewayError, createOrder } from "@/modules/orders/services/create-order";
@@ -31,7 +31,7 @@ function parseJson(text: string | undefined): unknown {
   }
 }
 
-export function ordersRouter(ctx: OrderContext, ordersPerMinute: number, readsPerMinute: number, isSalesOpen: () => boolean): FastifyPluginAsync {
+export function ordersRouter(ctx: OrderContext, ordersPerMinute: number, readsPerMinute: number, isSalesOpen: () => boolean, partyStyleEnabled = true): FastifyPluginAsync {
   // Na própria rota (vale para toda grafia que o Fastify roteia para cá) e antes de ler o upload.
   const closedSalesGate: onRequestAsyncHookHandler = async (_req, reply) => {
     if (!isSalesOpen()) {
@@ -64,6 +64,11 @@ export function ordersRouter(ctx: OrderContext, ordersPerMinute: number, readsPe
 
       if (!OrderDataSchema.safeParse(fields).success) {
         return badReq(reply, "Dados do pedido inválidos.");
+      }
+
+      // Estilo com o símbolo do partido pode estar desligado (PARTY_STYLE_ENABLED=false).
+      if (!partyStyleEnabled && fields.frameStyle === PARTY_FRAME_STYLE) {
+        return badReq(reply, PARTY_STYLE_UNAVAILABLE_MESSAGE);
       }
 
       // Consentimento (LGPD art. 11: a moldura revela preferência política). O campo vem antes da foto.

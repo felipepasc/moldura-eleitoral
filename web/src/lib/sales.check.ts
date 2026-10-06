@@ -1,38 +1,38 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { loadSalesStatus, parseSalesStatus } from "./sales";
+import { loadSiteStatus, parseSiteStatus } from "./sales";
 
-test("parseSalesStatus: só um false explícito fecha as vendas", () => {
-  assert.equal(parseSalesStatus({ salesEnabled: false }), false);
-  assert.equal(parseSalesStatus({ salesEnabled: true }), true);
-  assert.equal(parseSalesStatus({}), true);
-  assert.equal(parseSalesStatus(null), true);
-  assert.equal(parseSalesStatus({ salesEnabled: "false" }), true);
-  assert.equal(parseSalesStatus("lixo"), true);
+test("parseSiteStatus: vendas só fecham com false explícito; estilo do partido só aparece com true explícito", () => {
+  assert.deepEqual(parseSiteStatus({ salesEnabled: false, partyStyleEnabled: true }), { salesOpen: false, partyStyleEnabled: true });
+  assert.deepEqual(parseSiteStatus({ salesEnabled: true, partyStyleEnabled: false }), { salesOpen: true, partyStyleEnabled: false });
+  assert.deepEqual(parseSiteStatus({ salesEnabled: true }), { salesOpen: true, partyStyleEnabled: false });
+  assert.deepEqual(parseSiteStatus({}), { salesOpen: true, partyStyleEnabled: false });
+  assert.deepEqual(parseSiteStatus(null), { salesOpen: true, partyStyleEnabled: false });
+  assert.deepEqual(parseSiteStatus({ salesEnabled: "false", partyStyleEnabled: "true" }), { salesOpen: true, partyStyleEnabled: false });
+  assert.deepEqual(parseSiteStatus("lixo"), { salesOpen: true, partyStyleEnabled: false });
 });
 
-test("loadSalesStatus consulta /public/status sem cache e trata erro como aberto", async () => {
+test("loadSiteStatus consulta /public/status sem cache; erro = vendas abertas e estilo do partido escondido", async () => {
   const calls: { url: string; init: RequestInit | undefined }[] = [];
   const closed = async (url: string, init?: RequestInit) => {
     calls.push({ url, init });
 
-    return new Response(JSON.stringify({ salesEnabled: false }), { status: 200, headers: { "content-type": "application/json" } });
+    return new Response(JSON.stringify({ salesEnabled: false, partyStyleEnabled: true }), { status: 200, headers: { "content-type": "application/json" } });
   };
 
-  assert.equal(await loadSalesStatus("https://api.exemplo.com.br", closed), false);
+  assert.deepEqual(await loadSiteStatus("https://api.exemplo.com.br", closed), { salesOpen: false, partyStyleEnabled: true });
   assert.equal(calls[0].url, "https://api.exemplo.com.br/public/status");
   assert.equal(calls[0].init?.cache, "no-store");
   assert.equal(calls[0].init?.referrerPolicy, "no-referrer");
 
-  const open = async () => new Response(JSON.stringify({ salesEnabled: true }), { status: 200 });
+  const failClosed = { salesOpen: true, partyStyleEnabled: false };
   const failing = async () => {
     throw new Error("rede");
   };
   const serverError = async () => new Response("erro", { status: 500 });
   const notJson = async () => new Response("<html>", { status: 200 });
 
-  assert.equal(await loadSalesStatus("https://api.exemplo.com.br", open), true);
-  assert.equal(await loadSalesStatus("https://api.exemplo.com.br", failing), true);
-  assert.equal(await loadSalesStatus("https://api.exemplo.com.br", serverError), true);
-  assert.equal(await loadSalesStatus("https://api.exemplo.com.br", notJson), true);
+  assert.deepEqual(await loadSiteStatus("https://api.exemplo.com.br", failing), failClosed);
+  assert.deepEqual(await loadSiteStatus("https://api.exemplo.com.br", serverError), failClosed);
+  assert.deepEqual(await loadSiteStatus("https://api.exemplo.com.br", notJson), failClosed);
 });

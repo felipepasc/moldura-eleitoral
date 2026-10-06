@@ -34,6 +34,8 @@ export type AppDeps = {
   trustProxy: number;
   salesEnabled: boolean;
   salesBlackout?: Blackout[];
+  // Estilo "partido" (símbolo do partido) ligado? Padrão: ligado.
+  partyStyleEnabled?: boolean;
   ordersPerMinute: number;
   orderReadsPerMinute?: number;
   webhookPerMinute?: number;
@@ -91,8 +93,10 @@ export async function buildApp(deps: AppDeps) {
 
   app.get("/healthz", async () => ({ ok: true }));
 
-  await app.register(publicRouter(salesOpen, deps.orderReadsPerMinute ?? DEFAULT_ORDER_READS_PER_MINUTE), { prefix: "/public" });
-  await app.register(ordersRouter(deps.ctx, deps.ordersPerMinute, deps.orderReadsPerMinute ?? DEFAULT_ORDER_READS_PER_MINUTE, salesOpen), { prefix: "/orders" });
+  const partyStyleEnabled = deps.partyStyleEnabled ?? true;
+
+  await app.register(publicRouter(salesOpen, partyStyleEnabled, deps.orderReadsPerMinute ?? DEFAULT_ORDER_READS_PER_MINUTE), { prefix: "/public" });
+  await app.register(ordersRouter(deps.ctx, deps.ordersPerMinute, deps.orderReadsPerMinute ?? DEFAULT_ORDER_READS_PER_MINUTE, salesOpen, partyStyleEnabled), { prefix: "/orders" });
   const webhookPerMinute = deps.webhookPerMinute ?? DEFAULT_WEBHOOK_PER_MINUTE;
 
   if (deps.webhookSecret) {

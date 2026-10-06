@@ -94,3 +94,13 @@ test("compõe com uma moldura curada RGBA (lula--ondas): foto no centro, anel op
   const corner = await pixelAt(out, 3, 3);
   assert.equal(corner.a, 0);
 });
+
+test("compõe com a moldura curada do estilo partido (flavio-bolsonaro--partido)", async () => {
+  const photo = await normalizePhoto(await solidPhoto(800, 800));
+  const out = await composeImage(photo, { zoom: 1, offsetX: 0, offsetY: 0 }, path.resolve("assets/frames/flavio-bolsonaro--partido.png"));
+
+  const center = await pixelAt(out, 540, 540);
+  assert.ok(center.r > 150 && center.g < 80 && center.a === 255, "centro deve ser a foto");
+  assert.equal((await pixelAt(out, 540, 70)).a, 255);
+  assert.equal((await pixelAt(out, 3, 3)).a, 0);
+});

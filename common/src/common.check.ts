@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CANDIDATES, CreateOrderSchema, FRAME_SIZE, FRAME_STYLES, findFrameStyle, frameFileName, OrderSchema, PARTIES, STATES, candidatesBy, findCandidate, findParty, innerRadius, placePhoto } from "./index";
+import { CANDIDATES, CreateOrderSchema, FRAME_SIZE, FRAME_STYLES, PARTY_FRAME_STYLE, findFrameStyle, frameFileName, OrderSchema, PARTIES, STATES, candidatesBy, findCandidate, findParty, innerRadius, placePhoto } from "./index";
 
 test("innerRadius deixa 13% de anel de cada lado", () => {
   assert.equal(innerRadius(FRAME_SIZE), 540 - 140.4);
@@ -161,8 +161,11 @@ test("OrderSchema: id é uuid e downloadUrl é URL http/https ou null", () => {
   assert.equal(OrderSchema.safeParse({ ...order, downloadUrl: "não é url" }).success, false);
 });
 
-test("FRAME_STYLES tem os quatro estilos e findFrameStyle acha por id", () => {
-  assert.deepEqual(FRAME_STYLES.map((style) => style.id), ["classica", "faixa", "listras", "fina", "ondas", "geometrica"]);
+test("FRAME_STYLES tem os 13 estilos, nesta ordem, e findFrameStyle acha por id", () => {
+  assert.deepEqual(FRAME_STYLES.map((style) => style.id), ["classica", "faixa", "listras", "fina", "ondas", "geometrica", "campanha", "vibrante", "moderna", "retro", "metalica", "torcida", "partido"]);
+  assert.deepEqual(FRAME_STYLES.slice(6).map((style) => style.name), ["Campanha", "Vibrante", "Moderna", "Retrô", "Metálica", "Torcida", "Partido"]);
+  assert.equal(frameFileName("flavio-bolsonaro", "partido"), "flavio-bolsonaro--partido.png");
+  assert.equal(PARTY_FRAME_STYLE, "partido");
   assert.equal(findFrameStyle("faixa")?.name, "Faixa");
   assert.equal(findFrameStyle("xyz"), undefined);
 });

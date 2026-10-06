@@ -44,6 +44,7 @@ async function main() {
     trustProxy: env.TRUST_PROXY,
     salesEnabled: env.SALES_ENABLED,
     salesBlackout: env.SALES_BLACKOUT,
+    partyStyleEnabled: env.PARTY_STYLE_ENABLED,
     ordersPerMinute: 10,
   });
 

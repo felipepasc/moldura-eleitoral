@@ -1,4 +1,4 @@
-import { DEFAULT_FRAME_STYLE, findCandidate, findFrameStyle, frameFileName } from "@moldura/common";
+import { DEFAULT_FRAME_STYLE, FRAME_STYLES, PARTY_FRAME_STYLE, findCandidate, findFrameStyle, frameFileName } from "@moldura/common";
 import type { FrameStyleId } from "@moldura/common";
 
 const NEUTRAL_PREVIEW_FRAME = "/frames/neutral.png";
@@ -19,6 +19,16 @@ export function initialFrameStyle(param: string | string[] | undefined): FrameSt
   }
 
   return findFrameStyle(param)?.id ?? DEFAULT_FRAME_STYLE;
+}
+
+// Estilos oferecidos no seletor: o do partido só quando a api diz que está ligado.
+export function availableFrameStyles(partyStyleEnabled: boolean): (typeof FRAME_STYLES)[number][] {
+  return FRAME_STYLES.filter((style) => partyStyleEnabled || style.id !== PARTY_FRAME_STYLE);
+}
+
+// Estilo efetivo: com o do partido desligado, ele vira a clássica (link ?e=partido, por exemplo).
+export function resolveFrameStyle(style: FrameStyleId, partyStyleEnabled: boolean): FrameStyleId {
+  return style === PARTY_FRAME_STYLE && !partyStyleEnabled ? DEFAULT_FRAME_STYLE : style;
 }
 
 // Chave da moldura (candidato + estilo), igual ao nome do arquivo sem extensão; "" sem candidato.

@@ -30,6 +30,8 @@ const EnvSchema = z
     // Fail-closed: sem valor explícito as vendas ficam fechadas.
     SALES_ENABLED: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
     // Intervalos início/fim (ISO com fuso, separados por vírgula); vazio = sem blackout; inválido derruba a subida.
+    // Estilo de moldura com o símbolo do partido (risco de marca): "false" o desliga na hora (reinicie a api).
+    PARTY_STYLE_ENABLED: z.enum(["true", "false"]).default("true").transform((value) => value === "true"),
     SALES_BLACKOUT: z.string().default(DEFAULT_SALES_BLACKOUT).transform((value) => parseBlackout(value)),
     MINIO_ENDPOINT: z.string().default("localhost"),
     MINIO_PORT: z.coerce.number().default(9300),
