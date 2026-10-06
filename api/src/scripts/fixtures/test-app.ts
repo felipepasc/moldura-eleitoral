@@ -34,7 +34,6 @@ export type TestAppOptions = {
   salesEnabled?: boolean;
   webOrigin?: string;
   salesBlackout?: Blackout[];
-  partyStyleEnabled?: boolean;
 };
 
 export async function createTestApp(options: TestAppOptions = {}) {
@@ -63,7 +62,6 @@ export async function createTestApp(options: TestAppOptions = {}) {
     trustProxy: options.trustProxy ?? 0,
     salesEnabled: options.salesEnabled ?? true,
     salesBlackout: options.salesBlackout ?? [],
-    partyStyleEnabled: options.partyStyleEnabled ?? true,
     ordersPerMinute: options.ordersPerMinute ?? 1000,
     orderReadsPerMinute: options.orderReadsPerMinute,
     webhookPerMinute: options.webhookPerMinute ?? 1000,

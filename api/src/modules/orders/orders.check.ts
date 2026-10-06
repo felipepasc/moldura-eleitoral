@@ -511,28 +511,37 @@ test("pedido sem frameStyle (cliente antigo) vale classica e estilo desconhecido
   assert.equal((await postOrder({ candidateId: "lula", framing: FRAMING, frameStyle: "neon" }, file)).statusCode, 400);
 });
 
-test("estilo do partido desligado: POST /orders com frameStyle partido devolve 400 e não cria nada; outros estilos seguem", async () => {
-  await t.close();
-  t = await createTestApp({ partyStyleEnabled: false });
+test("estilo estrela: POST /orders cria o pedido e compõe com a moldura estrela; o antigo \"partido\" é recusado", async () => {
+  const path = await import("node:path");
+  const { composeImage } = await import("@/modules/orders/services/compose");
+  const { normalizePhoto } = await import("@/modules/orders/services/photo");
+  const original = await photo();
+  const created = (await postOrder({ candidateId: "flavio-bolsonaro", framing: FRAMING, frameStyle: "estrela" }, { data: original, type: "image/jpeg" })).json();
+  t.gateway.statuses.set(t.gateway.created[0], "PAID");
 
-  const refused = await postOrder({ candidateId: "lula", framing: FRAMING, frameStyle: "partido" }, { data: await photo(), type: "image/jpeg" });
+  const paid = (await t.app.inject({ method: "GET", url: `/orders/${created.id}` })).json();
+  const [row] = await t.db.select().from(orders).where(eq(orders.id, created.id));
+  const expected = await composeImage(await normalizePhoto(original), { zoom: 1, offsetX: 0, offsetY: 0 }, path.resolve("assets/frames/flavio-bolsonaro--estrela.png"));
 
-  assert.equal(refused.statusCode, 400);
-  assert.deepEqual(refused.json(), { error: "Este estilo não está disponível." });
-  assert.equal(t.gateway.created.length, 0);
-  assert.equal((await t.db.select().from(orders)).length, 0);
-
-  const other = await postOrder({ candidateId: "lula", framing: FRAMING, frameStyle: "metalica" }, { data: await photo(), type: "image/jpeg" });
-
-  assert.equal(other.statusCode, 201);
+  assert.equal(paid.status, "paid");
+  assert.equal(row.frameStyle, "estrela");
+  assert.ok(t.storage.files.get(`results/${created.id}.png`)?.equals(expected));
+  assert.equal((await postOrder({ candidateId: "lula", framing: FRAMING, frameStyle: "partido" }, { data: original, type: "image/jpeg" })).statusCode, 400);
 });
 
-test("estilo do partido ligado (padrão): POST /orders com frameStyle partido cria o pedido", async () => {
-  const res = await postOrder({ candidateId: "flavio-bolsonaro", framing: FRAMING, frameStyle: "partido" }, { data: await photo(), type: "image/jpeg" });
+test("pedido antigo com frame_style \"partido\" (estilo removido) é composto com a clássica", async () => {
+  const path = await import("node:path");
+  const { composeImage } = await import("@/modules/orders/services/compose");
+  const { normalizePhoto } = await import("@/modules/orders/services/photo");
+  const original = await photo();
+  const created = (await postOrder({ candidateId: "lula", framing: FRAMING, frameStyle: "faixa" }, { data: original, type: "image/jpeg" })).json();
 
-  assert.equal(res.statusCode, 201);
+  await t.db.update(orders).set({ frameStyle: "partido" }).where(eq(orders.id, created.id));
+  t.gateway.statuses.set(t.gateway.created[0], "PAID");
 
-  const [row] = await t.db.select().from(orders).where(eq(orders.id, res.json().id));
+  const paid = (await t.app.inject({ method: "GET", url: `/orders/${created.id}` })).json();
+  const classica = await composeImage(await normalizePhoto(original), { zoom: 1, offsetX: 0, offsetY: 0 }, path.resolve("assets/frames/lula.png"));
 
-  assert.equal(row.frameStyle, "partido");
+  assert.equal(paid.status, "paid");
+  assert.ok(t.storage.files.get(`results/${created.id}.png`)?.equals(classica));
 });

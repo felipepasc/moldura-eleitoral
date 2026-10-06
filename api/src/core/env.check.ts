@@ -24,12 +24,3 @@ test("PIX_GATEWAY=abacatepay exige as variáveis da AbacatePay e não a Woovi", 
 test("PIX_GATEWAY inválido é recusado", () => {
   assert.throws(() => parseEnv({ ...BASE, PIX_GATEWAY: "outro", WOOVI_APP_ID: "app" }));
 });
-
-test("PARTY_STYLE_ENABLED: padrão true; \"false\" desliga o estilo do partido; valor inválido derruba a subida", () => {
-  const withWoovi = { ...BASE, WOOVI_APP_ID: "app" };
-
-  assert.equal(parseEnv(withWoovi).PARTY_STYLE_ENABLED, true);
-  assert.equal(parseEnv({ ...withWoovi, PARTY_STYLE_ENABLED: "true" }).PARTY_STYLE_ENABLED, true);
-  assert.equal(parseEnv({ ...withWoovi, PARTY_STYLE_ENABLED: "false" }).PARTY_STYLE_ENABLED, false);
-  assert.throws(() => parseEnv({ ...withWoovi, PARTY_STYLE_ENABLED: "talvez" }));
-});

@@ -2,8 +2,7 @@ import { OrderSchema } from "@moldura/common";
 import type { FrameStyleId, Framing, Order } from "@moldura/common";
 import { DEFAULT_API_ORIGIN, normalizeApiUrl } from "@/lib/origin";
 import { parseRetryAfter } from "@/lib/polling";
-import { loadSiteStatus } from "@/lib/sales";
-import type { SiteStatus } from "@/lib/sales";
+import { loadSalesStatus } from "@/lib/sales";
 
 const API_URL = normalizeApiUrl(process.env.NEXT_PUBLIC_API_URL, DEFAULT_API_ORIGIN);
 
@@ -85,8 +84,8 @@ export async function createOrder(input: { candidateId: string; framing: Framing
   return readOrder(response);
 }
 
-export async function getSiteStatus(): Promise<SiteStatus> {
-  return loadSiteStatus(API_URL, (url, init) => fetch(url, init));
+export async function getSalesStatus(): Promise<boolean> {
+  return loadSalesStatus(API_URL, (url, init) => fetch(url, init));
 }
 
 export async function getOrder(id: string): Promise<Order> {

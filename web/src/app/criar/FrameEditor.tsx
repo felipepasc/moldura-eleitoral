@@ -4,11 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import type { DragEvent, KeyboardEvent, PointerEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CANDIDATES, MAX_ZOOM, PHOTO_MAX_BYTES, PHOTO_MIME_TYPES, PRICE_CENTS, candidatesBy } from "@moldura/common";
+import { CANDIDATES, FRAME_STYLES, MAX_ZOOM, PHOTO_MAX_BYTES, PHOTO_MIME_TYPES, PRICE_CENTS, candidatesBy } from "@moldura/common";
 import type { FrameStyleId, Framing } from "@moldura/common";
-import { createOrder, getSiteStatus, messageOf } from "@/lib/api";
+import { createOrder, getSalesStatus, messageOf } from "@/lib/api";
 import { sortCandidatesAlphabetically } from "@/lib/candidate-order";
-import { SALES_CLOSED_MESSAGE, availableFrameStyles, canSubmit, frameFailed, frameKey, frameLoaded, frameLoading, frameThumbSrc, isFrameFailed, isFrameReady, payHint as describePayHint, previewFrameSrc, resolveFrameStyle } from "@/lib/frame-choice";
+import { SALES_CLOSED_MESSAGE, canSubmit, frameFailed, frameKey, frameLoaded, frameLoading, frameThumbSrc, isFrameFailed, isFrameReady, payHint as describePayHint, previewFrameSrc } from "@/lib/frame-choice";
 import type { FrameStatus } from "@/lib/frame-choice";
 import { drawPreview } from "@/lib/preview";
 import { PREVIEW_SIZE, dragFraming } from "@/lib/preview-geometry";
@@ -31,11 +31,7 @@ export function FrameEditor({ initialCandidateId, initialStyle }: { initialCandi
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [candidateId, setCandidateId] = useState(initialCandidateId);
-  const [chosenStyle, setFrameStyle] = useState<FrameStyleId>(initialStyle);
-  // Estilo do partido: escondido até a api confirmar que está ligado (fail-closed).
-  const [partyStyleEnabled, setPartyStyleEnabled] = useState(false);
-  const frameStyle = resolveFrameStyle(chosenStyle, partyStyleEnabled);
-  const styles = availableFrameStyles(partyStyleEnabled);
+  const [frameStyle, setFrameStyle] = useState<FrameStyleId>(initialStyle);
   const styleRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const currentKey = frameKey(candidateId, frameStyle);
   const [file, setFile] = useState<File | null>(null);
@@ -49,15 +45,13 @@ export function FrameEditor({ initialCandidateId, initialStyle }: { initialCandi
   const [adult, setAdult] = useState(false);
   const [salesOpen, setSalesOpen] = useState(true);
 
-  // Status do site, uma consulta só: vendas (erro = aberto; a api recusa com 503 se estiver fechado)
-  // e estilo do partido (erro = escondido).
+  // Vendas abertas/fechadas: uma consulta só; erro conta como aberto (a api recusa com 503 se estiver fechado).
   useEffect(() => {
     let active = true;
 
-    void getSiteStatus().then((status) => {
+    void getSalesStatus().then((open) => {
       if (active) {
-        setSalesOpen(status.salesOpen);
-        setPartyStyleEnabled(status.partyStyleEnabled);
+        setSalesOpen(open);
       }
     });
 
@@ -325,7 +319,7 @@ export function FrameEditor({ initialCandidateId, initialStyle }: { initialCandi
 
   // Seletor de estilo como grupo de rádio: setas mudam a escolha e o foco; Home/End vão às pontas.
   function moveStyle(event: KeyboardEvent<HTMLButtonElement>, index: number) {
-    const total = styles.length;
+    const total = FRAME_STYLES.length;
     const targets: Record<string, number> = {
       ArrowRight: (index + 1) % total,
       ArrowDown: (index + 1) % total,
@@ -341,7 +335,7 @@ export function FrameEditor({ initialCandidateId, initialStyle }: { initialCandi
     }
 
     event.preventDefault();
-    setFrameStyle(styles[next].id);
+    setFrameStyle(FRAME_STYLES[next].id);
     styleRefs.current[next]?.focus();
   }
 
@@ -480,7 +474,7 @@ export function FrameEditor({ initialCandidateId, initialStyle }: { initialCandi
                 Estilo da moldura
               </p>
               <div className="styles-grid" role="radiogroup" aria-labelledby="styles-label">
-                {styles.map((style, index) => {
+                {FRAME_STYLES.map((style, index) => {
                   const selected = style.id === frameStyle;
 
                   return (
