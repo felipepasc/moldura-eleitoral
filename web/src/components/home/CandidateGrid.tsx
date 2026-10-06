@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { candidatesBy, findParty } from "@moldura/common";
+import { FRAME_STYLES, candidatesBy, findParty } from "@moldura/common";
 import { Reveal } from "@/components/Reveal";
 import { FramedPortrait } from "@/components/home/FramedPortrait";
 import { displayName, hasArt } from "@/lib/art";
@@ -26,13 +26,14 @@ export function CandidateGrid() {
 
             return (
               <Reveal key={candidate.id} as="li" delay={(index % 6) * 70}>
-                <Link className="cand-card" href={`/criar?c=${candidate.id}`} aria-label={`Usar a moldura de ${name}, número ${candidate.number}${party ? `, ${party.acronym}` : ""}. Moldura pronta${hasArt(candidate.id) ? ". Ilustração gerada por IA" : ""}`}>
+                <Link className="cand-card" href={`/criar?c=${candidate.id}`} aria-label={`Usar a moldura de ${name}, número ${candidate.number}${party ? `, ${party.acronym}` : ""}. Moldura pronta, ${FRAME_STYLES.length} estilos${hasArt(candidate.id) ? ". Ilustração gerada por IA" : ""}`}>
                   <FramedPortrait id={candidate.id} name={candidate.name} />
                   <b className="card-name">{name}</b>
                   <span className="card-meta">
                     Número {candidate.number}
                     {party ? <span className="card-party"> · {party.acronym}</span> : null}
                   </span>
+                  <span className="card-styles">{FRAME_STYLES.length} estilos de moldura</span>
                   <span className="chip-ready">
                     <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
                       <circle cx="10" cy="10" r="9" fill="currentColor" />

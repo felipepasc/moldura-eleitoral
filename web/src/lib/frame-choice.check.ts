@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { FRAME_LOAD_ERROR, canSubmit, frameFailed, frameLoaded, frameLoading, initialCandidateId, isFrameReady, payHint, previewFrameSrc } from "./frame-choice";
+import { FRAME_LOAD_ERROR, canSubmit, frameKey, frameThumbSrc, initialFrameStyle, frameFailed, frameLoaded, frameLoading, initialCandidateId, isFrameReady, payHint, previewFrameSrc } from "./frame-choice";
 
 test("sem ?c= válido, nenhuma moldura vem escolhida (nada de pré-selecionar o primeiro candidato)", () => {
   assert.equal(initialCandidateId(undefined), "");
@@ -93,4 +93,35 @@ test("as molduras neutra (prévia do /criar) e de exemplo (topo da home) existem
 
     assert.ok(existsSync(frame), frame);
   }
+});
+
+test("estilo pelo link (?e=): só ids válidos; senão a clássica", () => {
+  assert.equal(initialFrameStyle("ondas"), "ondas");
+  assert.equal(initialFrameStyle("geometrica"), "geometrica");
+  assert.equal(initialFrameStyle(undefined), "classica");
+  assert.equal(initialFrameStyle(""), "classica");
+  assert.equal(initialFrameStyle("ONDAS"), "classica");
+  assert.equal(initialFrameStyle("../lula"), "classica");
+  assert.equal(initialFrameStyle(["ondas", "fina"]), "classica");
+});
+
+test("prévia usa o PNG de 1080 do candidato + estilo; miniatura usa o WebP", () => {
+  assert.equal(previewFrameSrc("lula", "classica"), "/frames/lula.png");
+  assert.equal(previewFrameSrc("lula", "ondas"), "/frames/lula--ondas.png");
+  assert.equal(previewFrameSrc("flavio-bolsonaro", "fina"), "/frames/flavio-bolsonaro--fina.png");
+  assert.equal(previewFrameSrc("", "ondas"), "/frames/neutral.png");
+  assert.equal(frameThumbSrc("lula", "classica"), "/frames/lula.webp");
+  assert.equal(frameThumbSrc("lula", "listras"), "/frames/lula--listras.webp");
+});
+
+test("o status da moldura é por candidato + estilo: pronta em outro estilo não libera o pagamento", () => {
+  const ondas = frameKey("lula", "ondas");
+
+  assert.equal(ondas, "lula--ondas");
+  assert.equal(frameKey("lula", "classica"), "lula");
+  assert.equal(frameKey("", "ondas"), "");
+  assert.equal(isFrameReady(frameLoaded(frameKey("lula", "classica")), ondas), false);
+  assert.equal(isFrameReady(frameLoaded(ondas), ondas), true);
+  assert.equal(payHint({ candidateId: "lula", frameId: ondas, photoReady: true, ready: false, frame: frameLoaded("lula") }), "Carregando a moldura…");
+  assert.equal(payHint({ candidateId: "lula", frameId: ondas, photoReady: true, ready: false, frame: frameFailed(ondas) }), FRAME_LOAD_ERROR);
 });

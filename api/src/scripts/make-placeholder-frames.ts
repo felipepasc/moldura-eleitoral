@@ -1,22 +1,14 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { CANDIDATES, FRAME_STYLES, frameFileName } from "@moldura/common";
-import { EXEMPLO_FRAME, NEUTRAL_FRAME, renderPlaceholderFrame } from "@/scripts/placeholder-frame";
+import { GENERATED_FRAMES, renderPlaceholderFrame } from "@/scripts/placeholder-frame";
 
+// Gera só a moldura neutra (prévia do /criar) e a de exemplo (topo da home).
+// As molduras dos candidatos são curadas à mão em assets/frames e este script não toca nelas.
 async function main() {
   const dir = path.resolve("assets/frames");
   await mkdir(dir, { recursive: true });
 
-  for (const candidate of CANDIDATES) {
-    for (const style of FRAME_STYLES) {
-      const file = frameFileName(candidate.id, style.id);
-
-      await writeFile(path.join(dir, file), await renderPlaceholderFrame(candidate, style.id));
-      console.log(`ok ${file}`);
-    }
-  }
-
-  for (const frame of [NEUTRAL_FRAME, EXEMPLO_FRAME]) {
+  for (const frame of GENERATED_FRAMES) {
     await writeFile(path.join(dir, `${frame.id}.png`), await renderPlaceholderFrame(frame));
     console.log(`ok ${frame.id}`);
   }

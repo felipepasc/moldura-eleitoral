@@ -4,11 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import type { DragEvent, KeyboardEvent, PointerEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CANDIDATES, MAX_ZOOM, PHOTO_MAX_BYTES, PHOTO_MIME_TYPES, PRICE_CENTS, candidatesBy } from "@moldura/common";
-import type { Framing } from "@moldura/common";
+import { CANDIDATES, FRAME_STYLES, MAX_ZOOM, PHOTO_MAX_BYTES, PHOTO_MIME_TYPES, PRICE_CENTS, candidatesBy } from "@moldura/common";
+import type { FrameStyleId, Framing } from "@moldura/common";
 import { createOrder, getSalesStatus, messageOf } from "@/lib/api";
 import { sortCandidatesAlphabetically } from "@/lib/candidate-order";
-import { SALES_CLOSED_MESSAGE, canSubmit, frameFailed, frameLoaded, frameLoading, isFrameFailed, isFrameReady, payHint as describePayHint, previewFrameSrc } from "@/lib/frame-choice";
+import { SALES_CLOSED_MESSAGE, canSubmit, frameFailed, frameKey, frameLoaded, frameLoading, frameThumbSrc, isFrameFailed, isFrameReady, payHint as describePayHint, previewFrameSrc } from "@/lib/frame-choice";
 import type { FrameStatus } from "@/lib/frame-choice";
 import { drawPreview } from "@/lib/preview";
 import { PREVIEW_SIZE, dragFraming } from "@/lib/preview-geometry";
@@ -24,13 +24,16 @@ type LoadedFrame = { id: string; image: HTMLImageElement };
 
 type Drag = { x: number; y: number; offsetX: number; offsetY: number };
 
-export function FrameEditor({ initialCandidateId }: { initialCandidateId: string }) {
+export function FrameEditor({ initialCandidateId, initialStyle }: { initialCandidateId: string; initialStyle: FrameStyleId }) {
   const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const dragRef = useRef<Drag | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [candidateId, setCandidateId] = useState(initialCandidateId);
+  const [frameStyle, setFrameStyle] = useState<FrameStyleId>(initialStyle);
+  const styleRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const currentKey = frameKey(candidateId, frameStyle);
   const [file, setFile] = useState<File | null>(null);
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [frame, setFrame] = useState<LoadedFrame | null>(null);
@@ -56,7 +59,7 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
       active = false;
     };
   }, []);
-  const [frameStatus, setFrameStatus] = useState<FrameStatus>(() => frameLoading(initialCandidateId));
+  const [frameStatus, setFrameStatus] = useState<FrameStatus>(() => frameLoading(frameKey(initialCandidateId, initialStyle)));
   const [frameAttempt, setFrameAttempt] = useState(0);
   const [shortcutHidden, setShortcutHidden] = useState(false);
   const [awayHidden, setAwayHidden] = useState(false);
@@ -146,25 +149,27 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
     let active = true;
     const element = new Image();
 
-    setFrameStatus(frameLoading(candidateId));
+    const key = frameKey(candidateId, frameStyle);
+
+    setFrameStatus(frameLoading(key));
     element.onload = () => {
       if (active) {
-        setFrame({ id: candidateId, image: element });
-        setFrameStatus(frameLoaded(candidateId));
+        setFrame({ id: key, image: element });
+        setFrameStatus(frameLoaded(key));
       }
     };
     element.onerror = () => {
       if (active) {
         setFrame(null);
-        setFrameStatus(frameFailed(candidateId));
+        setFrameStatus(frameFailed(key));
       }
     };
-    element.src = previewFrameSrc(candidateId);
+    element.src = previewFrameSrc(candidateId, frameStyle);
 
     return () => {
       active = false;
     };
-  }, [candidateId, frameAttempt]);
+  }, [candidateId, frameStyle, frameAttempt]);
 
   useEffect(() => {
     if (!file) {
@@ -203,7 +208,7 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
 
   useEffect(() => {
     if (canvasRef.current) {
-      drawPreview(canvasRef.current, image, frame && frame.id === candidateId ? frame.image : null, framing, shortcutHidden || awayHidden);
+      drawPreview(canvasRef.current, image, frame && frame.id === currentKey ? frame.image : null, framing, shortcutHidden || awayHidden);
     }
   }, [image, frame, framing, candidateId, shortcutHidden, awayHidden]);
 
@@ -274,8 +279,8 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
     setFraming((current) => dragFraming({ ...current, offsetX: drag.offsetX, offsetY: drag.offsetY }, { x: drag.x, y: drag.y }, { x: event.clientX, y: event.clientY }, width));
   }
 
-  const frameReady = frame !== null && frame.id === candidateId && isFrameReady(frameStatus, candidateId);
-  const frameFailedNow = candidateId !== "" && isFrameFailed(frameStatus, candidateId);
+  const frameReady = frame !== null && frame.id === currentKey && isFrameReady(frameStatus, currentKey);
+  const frameFailedNow = candidateId !== "" && isFrameFailed(frameStatus, currentKey);
   const candidateName = CANDIDATES.find((candidate) => candidate.id === candidateId)?.name ?? "";
 
   async function submit() {
@@ -287,7 +292,7 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
     setError("");
 
     try {
-      const order = await createOrder({ candidateId, framing, photo: file });
+      const order = await createOrder({ candidateId, framing, frameStyle, photo: file });
 
       router.push(`/pedido/${order.id}`);
     } catch (caught) {
@@ -312,11 +317,33 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
     }
   }
 
+  // Seletor de estilo como grupo de rádio: setas mudam a escolha e o foco; Home/End vão às pontas.
+  function moveStyle(event: KeyboardEvent<HTMLButtonElement>, index: number) {
+    const total = FRAME_STYLES.length;
+    const targets: Record<string, number> = {
+      ArrowRight: (index + 1) % total,
+      ArrowDown: (index + 1) % total,
+      ArrowLeft: (index - 1 + total) % total,
+      ArrowUp: (index - 1 + total) % total,
+      Home: 0,
+      End: total - 1,
+    };
+    const next = targets[event.key];
+
+    if (next === undefined) {
+      return;
+    }
+
+    event.preventDefault();
+    setFrameStyle(FRAME_STYLES[next].id);
+    styleRefs.current[next]?.focus();
+  }
+
   function changeZoom(delta: number) {
     setFraming((current) => ({ ...current, zoom: Math.min(MAX_ZOOM, Math.max(1, Math.round((current.zoom + delta) * 100) / 100)) }));
   }
 
-  const payHint = describePayHint({ candidateId, photoReady, ready, frame: frameStatus, confirmed: consent && adult, salesOpen });
+  const payHint = describePayHint({ candidateId, frameId: currentKey, photoReady, ready, frame: frameStatus, confirmed: consent && adult, salesOpen });
 
   return (
     <section className="editor">
@@ -429,7 +456,7 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
             </h2>
           </div>
           <div className="frame-picker">
-            <img className="frame-picker-thumb" src={candidateId ? `/frames/${candidateId}.webp` : "/frames/neutral.webp"} alt="" width={56} height={56} draggable={false} />
+            <img className="frame-picker-thumb" src={candidateId ? frameThumbSrc(candidateId, frameStyle) : "/frames/neutral.webp"} alt="" width={56} height={56} draggable={false} />
             <select id="candidate" value={candidateId} onChange={(event) => setCandidateId(event.target.value)}>
               <option value="" disabled>
                 Escolha uma moldura…
@@ -441,6 +468,39 @@ export function FrameEditor({ initialCandidateId }: { initialCandidateId: string
               ))}
             </select>
           </div>
+          {candidateId ? (
+            <div className="styles">
+              <p className="styles-label" id="styles-label">
+                Estilo da moldura
+              </p>
+              <div className="styles-grid" role="radiogroup" aria-labelledby="styles-label">
+                {FRAME_STYLES.map((style, index) => {
+                  const selected = style.id === frameStyle;
+
+                  return (
+                    <button
+                      key={style.id}
+                      ref={(node) => {
+                        styleRefs.current[index] = node;
+                      }}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      tabIndex={selected ? 0 : -1}
+                      className={`style-option${selected ? " is-selected" : ""}`}
+                      onClick={() => setFrameStyle(style.id)}
+                      onKeyDown={(event) => moveStyle(event, index)}
+                    >
+                      <span className="style-thumb" aria-hidden="true">
+                        <img src={frameThumbSrc(candidateId, style.id)} alt="" width={72} height={72} draggable={false} loading="lazy" />
+                      </span>
+                      <span className="style-name">{style.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
         </li>
 
         <li className="editor-step">

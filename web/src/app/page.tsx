@@ -1,6 +1,5 @@
 import { CandidateGrid } from "@/components/home/CandidateGrid";
 import { Hero } from "@/components/home/Hero";
-import { PartiesStrip } from "@/components/home/PartiesStrip";
 import { Steps } from "@/components/home/Steps";
 
 export default function HomePage() {
@@ -9,7 +8,6 @@ export default function HomePage() {
       <Hero />
       <CandidateGrid />
       <Steps />
-      <PartiesStrip />
     </main>
   );
 }

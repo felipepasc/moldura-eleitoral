@@ -1,9 +1,8 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 import type { OverlayOptions } from "sharp";
-import { CANDIDATES, FRAME_STYLES } from "@moldura/common";
-import { renderPlaceholderFrame } from "@/scripts/placeholder-frame";
+import { CANDIDATES, FRAME_STYLES, frameFileName } from "@moldura/common";
 
 const CELL = 420;
 const LABEL = 56;
@@ -26,7 +25,8 @@ async function main() {
     for (const [column, style] of FRAME_STYLES.entries()) {
       const left = GAP + column * (CELL + GAP);
       const top = GAP + row * (CELL + LABEL + GAP);
-      const frame = await renderPlaceholderFrame(candidate, style.id);
+      // Usa as molduras curadas de assets/frames (as que vão para produção).
+      const frame = await readFile(path.resolve("assets/frames", frameFileName(candidate.id, style.id)));
       const merged = await sharp(silhouette).composite([{ input: frame }]).png().toBuffer();
       const cell = await sharp(merged).resize(CELL, CELL).png().toBuffer();
       const label = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${CELL}" height="${LABEL}"><text x="${CELL / 2}" y="38" font-family="Arial, sans-serif" font-size="28" font-weight="bold" text-anchor="middle" fill="#111827">${style.name}</text></svg>`);

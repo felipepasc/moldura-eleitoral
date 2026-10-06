@@ -76,3 +76,21 @@ test("normalizePhoto aceita jpeg, png e webp", async () => {
     assert.equal((await sharp(out).metadata()).format, "jpeg");
   }
 });
+
+test("compõe com uma moldura curada RGBA (lula--ondas): foto no centro, anel opaco e cantos transparentes", async () => {
+  const photo = await normalizePhoto(await solidPhoto(800, 800));
+  const out = await composeImage(photo, { zoom: 1, offsetX: 0, offsetY: 0 }, path.resolve("assets/frames/lula--ondas.png"));
+  const meta = await sharp(out).metadata();
+
+  assert.equal(meta.width, 1080);
+  assert.equal(meta.height, 1080);
+
+  const center = await pixelAt(out, 540, 540);
+  assert.ok(center.r > 150 && center.g < 80 && center.a === 255, "centro deve ser a foto");
+
+  const ring = await pixelAt(out, 540, 70);
+  assert.equal(ring.a, 255);
+
+  const corner = await pixelAt(out, 3, 3);
+  assert.equal(corner.a, 0);
+});

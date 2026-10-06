@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { CANDIDATES, CreateOrderSchema, FRAME_STYLES, PARTIES, findCandidate, findParty, frameFileName } from "@moldura/common";
-import { EXEMPLO_FRAME, NEUTRAL_FRAME, buildFrameSvg, missingGlyphs, renderPlaceholderFrame, validateFrame } from "@/scripts/placeholder-frame";
+import { EXEMPLO_FRAME, GENERATED_FRAMES, NEUTRAL_FRAME, buildFrameSvg, missingGlyphs, renderPlaceholderFrame, validateFrame } from "@/scripts/placeholder-frame";
 
 const FRAMES_DIR = path.resolve("assets/frames");
 const MIN_PARTY_DISTANCE = 60;
@@ -189,4 +189,36 @@ test("Missão é amarelo e preto, com nome e número legíveis", () => {
 
   assert.ok(svg.includes('stroke="#fdbf35"'), "anel amarelo");
   assert.ok(svg.includes('fill="#000000"'), "texto preto sobre o amarelo");
+});
+
+test("frames:build só gera a neutra e a de exemplo: nunca sobrescreve as molduras curadas dos candidatos", async () => {
+  const candidateFiles = new Set(CANDIDATES.flatMap((candidate) => FRAME_STYLES.map((style) => frameFileName(candidate.id, style.id))));
+  const targets = GENERATED_FRAMES.map((frame) => `${frame.id}.png`);
+
+  assert.deepEqual(targets.sort(), ["exemplo.png", "neutral.png"]);
+
+  for (const target of targets) {
+    assert.ok(!candidateFiles.has(target), target);
+  }
+
+  const script = await readFile(path.resolve("src/scripts/make-placeholder-frames.ts"), "utf8");
+
+  assert.ok(!script.includes("CANDIDATES"), "o script de build não pode iterar os candidatos");
+  assert.ok(script.includes("GENERATED_FRAMES"));
+});
+
+test("cada moldura curada tem o furo do tamanho certo (transparente até o raio interno, opaca logo depois)", async () => {
+  const sharp = (await import("sharp")).default;
+
+  for (const candidate of CANDIDATES) {
+    for (const style of FRAME_STYLES) {
+      const { data, info } = await sharp(path.join(FRAMES_DIR, frameFileName(candidate.id, style.id))).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+      const alpha = (x: number, y: number) => data[(y * info.width + x) * 4 + 3];
+
+      for (const [dx, dy] of [[1, 0], [0, 1], [-1, 0], [0, -1]]) {
+        assert.equal(alpha(540 + dx * 395, 540 + dy * 395), 0, `${candidate.id}/${style.id} furo`);
+        assert.ok(alpha(540 + dx * 410, 540 + dy * 410) > 200, `${candidate.id}/${style.id} anel`);
+      }
+    }
+  }
 });

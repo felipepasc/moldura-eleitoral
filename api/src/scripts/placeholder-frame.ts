@@ -16,6 +16,9 @@ export const NEUTRAL_FRAME: FrameSpec = { id: "neutral", frameName: "SUA FOTO AQ
 // Moldura de exemplo do topo da home (não é candidato): mesmos cinzas da neutra, "SEU CANDIDATO" e o número 00, que não existe na urna.
 export const EXEMPLO_FRAME: FrameSpec = { id: "exemplo", frameName: "SEU CANDIDATO", number: "00", colors: ["#6b7280", "#cbd5e1", "#b4b4bb"] };
 
+// As únicas molduras que `frames:build` gera. As dos candidatos são arquivos curados (feitos à parte) e nunca são sobrescritas.
+export const GENERATED_FRAMES: readonly FrameSpec[] = [NEUTRAL_FRAME, EXEMPLO_FRAME];
+
 const FONT_URL = new URL("../../assets/fonts/montserrat-latin-800-normal.woff", import.meta.url);
 const MAX_ARC_DEGREES = 100;
 const LETTER_SPACING = 0.09;

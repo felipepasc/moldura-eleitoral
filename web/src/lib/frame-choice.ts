@@ -1,4 +1,5 @@
-import { findCandidate } from "@moldura/common";
+import { DEFAULT_FRAME_STYLE, findCandidate, findFrameStyle, frameFileName } from "@moldura/common";
+import type { FrameStyleId } from "@moldura/common";
 
 const NEUTRAL_PREVIEW_FRAME = "/frames/neutral.png";
 
@@ -11,13 +12,36 @@ export function initialCandidateId(param: string | string[] | undefined): string
   return param;
 }
 
+// Estilo pelo link (?e=<estilo>): só ids conhecidos; senão a clássica.
+export function initialFrameStyle(param: string | string[] | undefined): FrameStyleId {
+  if (typeof param !== "string") {
+    return DEFAULT_FRAME_STYLE;
+  }
+
+  return findFrameStyle(param)?.id ?? DEFAULT_FRAME_STYLE;
+}
+
+// Chave da moldura (candidato + estilo), igual ao nome do arquivo sem extensão; "" sem candidato.
+export function frameKey(candidateId: string, style: FrameStyleId): string {
+  if (!candidateId) {
+    return "";
+  }
+
+  return frameFileName(candidateId, style).replace(/\.png$/, "");
+}
+
 // A prévia precisa da moldura em 1080 px (PNG), não do WebP reduzido da home.
-export function previewFrameSrc(candidateId: string): string {
+export function previewFrameSrc(candidateId: string, style: FrameStyleId = DEFAULT_FRAME_STYLE): string {
   if (!candidateId) {
     return NEUTRAL_PREVIEW_FRAME;
   }
 
-  return `/frames/${candidateId}.png`;
+  return `/frames/${frameFileName(candidateId, style)}`;
+}
+
+// Miniatura do estilo no seletor (WebP de 480 px gerado pelo sync-frames).
+export function frameThumbSrc(candidateId: string, style: FrameStyleId): string {
+  return `/frames/${frameKey(candidateId, style)}.webp`;
 }
 
 export type SubmitState = {
@@ -61,7 +85,8 @@ export function isFrameFailed(status: FrameStatus, candidateId: string): boolean
   return status.id === candidateId && status.state === "failed";
 }
 
-export type HintState = { candidateId: string; photoReady: boolean; ready: boolean; frame: FrameStatus; confirmed?: boolean; salesOpen?: boolean };
+// frameId: chave candidato + estilo da moldura exibida (padrão: o próprio candidateId, estilo clássico).
+export type HintState = { candidateId: string; frameId?: string; photoReady: boolean; ready: boolean; frame: FrameStatus; confirmed?: boolean; salesOpen?: boolean };
 
 export const SALES_CLOSED_MESSAGE = "As vendas estão fechadas no momento.";
 
@@ -75,11 +100,13 @@ export function payHint(state: HintState): string {
     return SALES_CLOSED_MESSAGE;
   }
 
-  if (state.candidateId && isFrameFailed(state.frame, state.candidateId)) {
+  const frameId = state.frameId ?? state.candidateId;
+
+  if (state.candidateId && isFrameFailed(state.frame, frameId)) {
     return FRAME_LOAD_ERROR;
   }
 
-  if (state.candidateId && !isFrameReady(state.frame, state.candidateId)) {
+  if (state.candidateId && !isFrameReady(state.frame, frameId)) {
     return "Carregando a moldura…";
   }
 

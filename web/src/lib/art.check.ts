@@ -3,8 +3,8 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { CANDIDATES, PARTIES, candidatesBy, findCandidate } from "@moldura/common";
-import { ART_IDS, EXAMPLE_FRAME_ID, HERO_ART, artSrc, contrastRatio, displayName, frameSrc, hasArt, readableText, swatch, withArt } from "./art";
+import { CANDIDATES, candidatesBy, findCandidate } from "@moldura/common";
+import { ART_IDS, EXAMPLE_FRAME_ID, HERO_ART, artSrc, displayName, frameSrc, hasArt, withArt } from "./art";
 
 test("hasArt e artSrc só reconhecem as ilustrações aprovadas", () => {
   assert.equal(hasArt("lula"), true);
@@ -45,20 +45,6 @@ test("displayName deixa o nome legível em caixa mista", () => {
   assert.equal(displayName("JOÃO DA SILVA"), "João da Silva");
 });
 
-test("readableText garante contraste AA para o texto da faixa de partidos", () => {
-  assert.equal(readableText("#ffffff"), "#0f172a");
-  assert.equal(readableText("#000000"), "#ffffff");
-  assert.equal(readableText("#ffc200"), "#0f172a");
-
-  for (const party of PARTIES) {
-    const colors = swatch(party.colors.primary);
-
-    assert.ok(contrastRatio(colors.background, colors.text) >= 4.5, `${party.acronym} ${colors.background}`);
-  }
-
-  assert.deepEqual(swatch("#e20e28"), { background: "#e20e28", text: "#ffffff" });
-  assert.deepEqual(swatch("lixo"), { background: "#475569", text: "#ffffff" });
-});
 
 test("toda ilustração de ART_IDS tem o arquivo public/art/<id>.webp e um candidato", () => {
   const artDir = fileURLToPath(new URL("../../public/art/", import.meta.url));
