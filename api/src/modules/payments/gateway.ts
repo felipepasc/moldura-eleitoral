@@ -4,6 +4,8 @@ export type CreatePixInput = {
   amountCents: number;
   description: string;
   expiresInSeconds: number;
+  // Id do pedido: o gateway pode usá-lo como identificador próprio da cobrança (Woovi) ou ignorá-lo (AbacatePay).
+  reference: string;
 };
 
 export type CreatedPix = {

@@ -1,3 +1,4 @@
+import { generateKeyPairSync, sign } from "node:crypto";
 import path from "node:path";
 import type { DestinationStream } from "pino";
 import { buildApp } from "@/app";
@@ -11,6 +12,16 @@ import { createMemoryStorage } from "@/scripts/fixtures/memory-storage";
 
 export const WEBHOOK_SECRET = "test-webhook-secret-123456";
 
+const WOOVI_KEYS = generateKeyPairSync("rsa", { modulusLength: 2048 });
+const OTHER_KEYS = generateKeyPairSync("rsa", { modulusLength: 2048 });
+
+export const WOOVI_TEST_PUBLIC_KEY = WOOVI_KEYS.publicKey.export({ type: "spki", format: "pem" }).toString();
+
+// Assina o corpo cru como a Woovi faz (RSA + SHA-256, base64). Com `forged`, assina com outra chave.
+export function signWoovi(raw: string | Buffer, forged = false): string {
+  return sign("sha256", Buffer.from(raw), (forged ? OTHER_KEYS : WOOVI_KEYS).privateKey).toString("base64");
+}
+
 export type TestAppOptions = {
   now?: () => Date;
   ordersPerMinute?: number;
@@ -20,6 +31,7 @@ export type TestAppOptions = {
   webhookPerMinute?: number;
   trustProxy?: number;
   salesEnabled?: boolean;
+  webOrigin?: string;
 };
 
 export async function createTestApp(options: TestAppOptions = {}) {
@@ -43,7 +55,8 @@ export async function createTestApp(options: TestAppOptions = {}) {
   const app = await buildApp({
     ctx,
     webhookSecret: WEBHOOK_SECRET,
-    webOrigin: "http://localhost:6610",
+    wooviPublicKey: WOOVI_TEST_PUBLIC_KEY,
+    webOrigin: options.webOrigin ?? "http://localhost:6610",
     trustProxy: options.trustProxy ?? 0,
     salesEnabled: options.salesEnabled ?? true,
     ordersPerMinute: options.ordersPerMinute ?? 1000,

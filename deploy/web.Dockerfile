@@ -46,4 +46,6 @@ EXPOSE 6610
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:6610/').then((r) => process.exit(r.status < 500 ? 0 : 1)).catch(() => process.exit(1))"
 
-CMD ["pnpm", "--filter", "@moldura/web", "start"]
+# Sem pnpm/corepack em tempo de execução (não há rede para baixá-los): chama o next direto.
+WORKDIR /app/web
+CMD ["./node_modules/.bin/next", "start", "-p", "6610"]

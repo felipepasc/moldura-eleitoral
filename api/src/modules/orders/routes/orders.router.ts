@@ -1,4 +1,4 @@
-import type { FastifyPluginAsync } from "fastify";
+import type { FastifyPluginAsync, onRequestAsyncHookHandler } from "fastify";
 import { z } from "zod";
 import { CONSENT_REQUIRED_MESSAGE, CreateOrderSchema, PHOTO_MIME_TYPES } from "@moldura/common";
 import { badGateway, badReq, created, notFound, ok } from "@/core/http-fastify";
@@ -31,13 +31,20 @@ function parseJson(text: string | undefined): unknown {
   }
 }
 
-export function ordersRouter(ctx: OrderContext, ordersPerMinute: number, readsPerMinute: number): FastifyPluginAsync {
+export function ordersRouter(ctx: OrderContext, ordersPerMinute: number, readsPerMinute: number, salesEnabled: boolean): FastifyPluginAsync {
+  // Na própria rota (vale para toda grafia que o Fastify roteia para cá) e antes de ler o upload.
+  const closedSalesGate: onRequestAsyncHookHandler = async (_req, reply) => {
+    if (!salesEnabled) {
+      return reply.code(503).send({ error: "As vendas estão fechadas no momento." });
+    }
+  };
+
   return async (app) => {
     app.addHook("onSend", async (_req, reply) => {
       reply.header("Cache-Control", "no-store");
     });
 
-    app.post("/", { config: { rateLimit: { max: ordersPerMinute, timeWindow: "1 minute" } } }, async (req, reply) => {
+    app.post("/", { onRequest: closedSalesGate, config: { rateLimit: { max: ordersPerMinute, timeWindow: "1 minute" } } }, async (req, reply) => {
       const file = await req.file();
 
       if (!file) {

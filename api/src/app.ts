@@ -9,14 +9,25 @@ import { badReq, notFound, serverErr, tooLarge } from "@/core/http-fastify";
 import type { OrderContext } from "@/modules/orders/context";
 import { publicRouter } from "@/modules/public/public.router";
 import { ordersRouter } from "@/modules/orders/routes/orders.router";
+import { wooviWebhookRouter } from "@/modules/payments/woovi-webhook.router";
 import { webhookRouter } from "@/modules/payments/webhook.router";
 
 const DEFAULT_ORDER_READS_PER_MINUTE = 300;
 const DEFAULT_WEBHOOK_PER_MINUTE = 120;
 
+// WEB_ORIGIN pode ser uma lista separada por vírgula (apex e www); cada item vira a origem normalizada.
+export function parseOrigins(value: string): string[] {
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0)
+    .map((item) => new URL(item).origin);
+}
+
 export type AppDeps = {
   ctx: OrderContext;
-  webhookSecret: string;
+  webhookSecret?: string;
+  wooviPublicKey?: string;
   webOrigin: string;
   trustProxy: number;
   salesEnabled: boolean;
@@ -32,19 +43,12 @@ export async function buildApp(deps: AppDeps) {
     bodyLimit: PHOTO_MAX_BYTES + 1024 * 1024,
   });
 
-  await app.register(cors, { origin: deps.webOrigin, exposedHeaders: ["Retry-After"] });
+  await app.register(cors, { origin: parseOrigins(deps.webOrigin), exposedHeaders: ["Retry-After"] });
   await app.register(rateLimit, { global: false });
   await app.register(multipart, { limits: { files: 1, fields: 5, fileSize: PHOTO_MAX_BYTES } });
 
   app.addHook("onSend", async (_req, reply) => {
     reply.header("X-Content-Type-Options", "nosniff");
-  });
-
-  // Antes de ler o upload: com as vendas fechadas, nada do pedido chega a ser lido.
-  app.addHook("onRequest", async (req, reply) => {
-    if (!deps.salesEnabled && req.method === "POST" && req.url.split("?")[0] === "/orders") {
-      return reply.code(503).send({ error: "As vendas estão fechadas no momento." });
-    }
   });
 
   app.setErrorHandler((error: FastifyError, req, reply) => {
@@ -82,8 +86,16 @@ export async function buildApp(deps: AppDeps) {
   app.get("/healthz", async () => ({ ok: true }));
 
   await app.register(publicRouter(deps.salesEnabled, deps.orderReadsPerMinute ?? DEFAULT_ORDER_READS_PER_MINUTE), { prefix: "/public" });
-  await app.register(ordersRouter(deps.ctx, deps.ordersPerMinute, deps.orderReadsPerMinute ?? DEFAULT_ORDER_READS_PER_MINUTE), { prefix: "/orders" });
-  await app.register(webhookRouter(deps.ctx, deps.webhookSecret, deps.webhookPerMinute ?? DEFAULT_WEBHOOK_PER_MINUTE), { prefix: "/webhooks" });
+  await app.register(ordersRouter(deps.ctx, deps.ordersPerMinute, deps.orderReadsPerMinute ?? DEFAULT_ORDER_READS_PER_MINUTE, deps.salesEnabled), { prefix: "/orders" });
+  const webhookPerMinute = deps.webhookPerMinute ?? DEFAULT_WEBHOOK_PER_MINUTE;
+
+  if (deps.webhookSecret) {
+    await app.register(webhookRouter(deps.ctx, deps.webhookSecret, webhookPerMinute), { prefix: "/webhooks" });
+  }
+
+  if (deps.wooviPublicKey) {
+    await app.register(wooviWebhookRouter(deps.ctx, deps.wooviPublicKey, webhookPerMinute), { prefix: "/webhooks" });
+  }
 
   return app;
 }

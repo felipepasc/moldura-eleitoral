@@ -7,8 +7,19 @@ import { createMinioStorage } from "@/core/storage";
 import type { OrderContext } from "@/modules/orders/context";
 import { cleanupOrders } from "@/modules/orders/services/cleanup";
 import { createAbacatePayGateway } from "@/modules/payments/abacatepay";
+import type { PixGateway } from "@/modules/payments/gateway";
+import { WOOVI_PUBLIC_KEY_PEM, normalizePublicKey } from "@/modules/payments/woovi-webhook.router";
+import { createWooviGateway } from "@/modules/payments/woovi";
 
 const CLEANUP_INTERVAL_MS = 3600_000;
+
+function createGateway(): PixGateway {
+  if (env.PIX_GATEWAY === "abacatepay") {
+    return createAbacatePayGateway({ apiKey: env.ABACATEPAY_API_KEY ?? "", baseUrl: env.ABACATEPAY_BASE_URL });
+  }
+
+  return createWooviGateway({ appId: env.WOOVI_APP_ID ?? "", baseUrl: env.WOOVI_BASE_URL });
+}
 
 async function main() {
   const { db, sql } = createDb(env.DATABASE_URL);
@@ -19,7 +30,7 @@ async function main() {
   const ctx: OrderContext = {
     db,
     storage,
-    gateway: createAbacatePayGateway({ apiKey: env.ABACATEPAY_API_KEY, baseUrl: env.ABACATEPAY_BASE_URL }),
+    gateway: createGateway(),
     framesDir: fileURLToPath(new URL("../assets/frames", import.meta.url)),
     logger,
     now: () => new Date(),
@@ -27,7 +38,8 @@ async function main() {
 
   const app = await buildApp({
     ctx,
-    webhookSecret: env.ABACATEPAY_WEBHOOK_SECRET,
+    webhookSecret: env.PIX_GATEWAY === "abacatepay" ? env.ABACATEPAY_WEBHOOK_SECRET : undefined,
+    wooviPublicKey: env.PIX_GATEWAY === "woovi" ? normalizePublicKey(env.WOOVI_WEBHOOK_PUBLIC_KEY ?? WOOVI_PUBLIC_KEY_PEM) : undefined,
     webOrigin: env.WEB_ORIGIN,
     trustProxy: env.TRUST_PROXY,
     salesEnabled: env.SALES_ENABLED,

@@ -38,6 +38,7 @@ export async function createOrder(ctx: OrderContext, input: CreateOrderInput): P
       amountCents: PRICE_CENTS,
       description: "Moldura Eleitoral",
       expiresInSeconds: PIX_EXPIRES_SECONDS,
+      reference: id,
     });
   } catch (error) {
     ctx.logger.error({ err: error }, "Falha ao criar o Pix");

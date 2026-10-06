@@ -33,7 +33,7 @@ test("createPix envia o corpo certo e entende a resposta embrulhada em data", as
   ]);
   const gateway = createAbacatePayGateway({ apiKey: "k-123", baseUrl: "https://api.example.com/v2", fetchFn });
 
-  const pix = await gateway.createPix({ amountCents: 399, description: "Moldura Eleitoral", expiresInSeconds: 1800 });
+  const pix = await gateway.createPix({ amountCents: 399, description: "Moldura Eleitoral", expiresInSeconds: 1800, reference: "r" });
 
   assert.equal(calls[0].url, "https://api.example.com/v2/transparents/create");
   assert.equal(calls[0].method, "POST");
@@ -50,7 +50,7 @@ test("createPix aceita resposta sem o embrulho data", async () => {
   ]);
   const gateway = createAbacatePayGateway({ apiKey: "k", baseUrl: "https://x/v2", fetchFn });
 
-  const pix = await gateway.createPix({ amountCents: 399, description: "d", expiresInSeconds: 60 });
+  const pix = await gateway.createPix({ amountCents: 399, description: "d", expiresInSeconds: 60, reference: "r" });
 
   assert.equal(pix.id, "pix_2");
 });
@@ -160,7 +160,7 @@ test("expiresAt inválido é rejeitado", async () => {
   ]);
   const gateway = createAbacatePayGateway({ apiKey: "k", baseUrl: "https://x/v2", fetchFn });
 
-  await assert.rejects(gateway.createPix({ amountCents: 1, description: "d", expiresInSeconds: 1 }));
+  await assert.rejects(gateway.createPix({ amountCents: 1, description: "d", expiresInSeconds: 1, reference: "r" }));
 });
 
 test("barra final do baseUrl é removida", async () => {
@@ -176,7 +176,7 @@ test("resposta de criação malformada lança mensagem fixa sem ecoar valores", 
   const { fetchFn } = fakeFetch([{ status: 200, json: { data: { id: 123, brCode: "valor-sensivel-abc" } } }]);
   const gateway = createAbacatePayGateway({ apiKey: "k", baseUrl: "https://x/v2", fetchFn });
 
-  await assert.rejects(gateway.createPix({ amountCents: 1, description: "d", expiresInSeconds: 1 }), (error: Error) => {
+  await assert.rejects(gateway.createPix({ amountCents: 1, description: "d", expiresInSeconds: 1, reference: "r" }), (error: Error) => {
     const text = `${error.message} ${error.stack ?? ""}`;
 
     return error.message === "AbacatePay respondeu formato inválido em /transparents/create" && !text.includes("valor-sensivel-abc");
