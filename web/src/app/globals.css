@@ -69,8 +69,11 @@ select:disabled { background:#f1f5f9; color:var(--muted); cursor:not-allowed; }
 /* Retrato com moldura (ilustração ou silhueta) */
 .portrait { position:relative; width:100%; aspect-ratio:1; }
 .portrait-photo { position:absolute; inset:12%; border-radius:50%; overflow:hidden; background:var(--sky); }
+/* Molduras de candidato: a foto ocupa o quadro todo e é recortada pela máscara da moldura (furo de formato livre). */
+.portrait-photo.is-masked { inset:0; border-radius:0; -webkit-mask-size:100% 100%; mask-size:100% 100%; -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat; }
 .portrait-photo img, .portrait-photo svg { display:block; width:100%; height:100%; object-fit:cover; object-position:50% 40%; }
 .portrait-photo img { transform:scale(1.14) translateY(3%); }
+.portrait-photo.is-masked img { transform:scale(.86) translateY(-4%); }
 .portrait-frame { position:absolute; inset:0; width:100%; height:100%; display:block; }
 
 /* Hero */
@@ -187,8 +190,8 @@ select:disabled { background:#f1f5f9; color:var(--muted); cursor:not-allowed; }
 .editor { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:28px; align-items:start; margin-block:24px 8px; }
 .editor-preview { position:sticky; top:16px; }
 .preview-card { -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; padding:22px 22px 18px; background:linear-gradient(180deg,#f3f7fd,#fff 60%); border:1px solid var(--line); border-radius:24px; }
-.preview-card .preview { max-width:460px; border-radius:50%; }
-.preview-card .preview:focus-visible { outline-offset:6px; border-radius:50%; }
+.preview-card .preview { max-width:460px; }
+.preview-card .preview:focus-visible { outline-offset:6px; border-radius:12px; }
 .preview-tip { margin:14px 0 0; text-align:center; color:var(--muted); font-size:14px; }
 .preview-note { display:flex; align-items:center; gap:8px; margin:12px 4px 0; color:var(--muted); font-size:13px; }
 .preview-note svg { width:18px; height:18px; flex:none; color:var(--green); }
@@ -298,11 +301,12 @@ select:disabled { background:#f1f5f9; color:var(--muted); cursor:not-allowed; }
 /* Seletor de estilo da moldura */
 .styles { margin-top:16px; }
 .styles-label { margin:0 0 8px; font-size:14px; font-weight:600; color:#334155; }
-.styles-grid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:8px; }
+.styles-grid { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:8px; }
 .style-option { display:flex; flex-direction:column; align-items:center; gap:6px; min-height:44px; padding:8px 4px 10px; border:2px solid var(--line); border-radius:14px; background:#fff; color:#334155; font:600 13px system-ui,sans-serif; cursor:pointer; transition:border-color .2s, background-color .2s; }
 .style-option:hover { border-color:#b9c8e4; }
 .style-option.is-selected { border-color:var(--blue); background:#eef4ff; color:var(--ink); box-shadow:0 0 0 2px rgba(20,89,217,.15); }
-.style-thumb { position:relative; display:block; width:64px; height:64px; border-radius:50%; background:radial-gradient(circle at 50% 41%, #a9b6c9 0 14%, transparent 14.5%), radial-gradient(ellipse 33% 32% at 50% 98%, #a9b6c9 0 99%, transparent 100%), #dfe6f1; }
+.style-thumb { position:relative; display:block; width:64px; height:64px; }
+.style-thumb-photo { position:absolute; inset:0; background:radial-gradient(circle at 50% 36%, #a9b6c9 0 13%, transparent 13.5%), radial-gradient(ellipse 30% 30% at 50% 86%, #a9b6c9 0 99%, transparent 100%), #dfe6f1; -webkit-mask-size:100% 100%; mask-size:100% 100%; -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat; }
 .style-thumb img { position:absolute; inset:0; width:100%; height:100%; }
 @media (max-width:1100px) {
   .styles-grid { grid-template-columns:repeat(4,minmax(0,1fr)); }

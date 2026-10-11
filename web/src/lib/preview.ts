@@ -1,5 +1,5 @@
-import { innerRadius, placePhoto } from "@moldura/common";
-import type { Framing } from "@moldura/common";
+import { CENTER_HOLE, innerRadius, placePhoto } from "@moldura/common";
+import type { FrameHole, Framing } from "@moldura/common";
 import { PREVIEW_SIZE } from "@/lib/preview-geometry";
 import { WATERMARK_BASE_SIZE, isSmallRow, watermarkLayout } from "@/lib/watermark";
 
@@ -43,6 +43,9 @@ function drawBlackout(ctx: CanvasRenderingContext2D, size: number): void {
   ctx.fillText("Pré-visualização oculta", size / 2, size / 2);
 }
 
+// Molduras de candidato têm furo de formato livre: a foto é recortada pela máscara e posicionada pelo furo.
+export type PreviewLayout = { mask: HTMLImageElement; hole: FrameHole };
+
 // Desenha a prévia no canvas (buffer de PREVIEW_SIZE px). O canvas nunca é exportado
 // (nenhuma API de exportação de canvas é usada): a foto final limpa só é montada no servidor depois do Pix.
 export function drawPreview(
@@ -51,6 +54,7 @@ export function drawPreview(
   frame: HTMLImageElement | null,
   framing: Framing,
   hidden = false,
+  layout: PreviewLayout | null = null,
 ): void {
   const ctx = canvas.getContext("2d");
 
@@ -68,10 +72,20 @@ export function drawPreview(
     return;
   }
 
+  const hole = layout?.hole ?? CENTER_HOLE;
+
   ctx.save();
-  ctx.beginPath();
-  ctx.arc(size / 2, size / 2, innerRadius(size), 0, Math.PI * 2);
-  ctx.clip();
+
+  // Sem máscara (moldura neutra), a foto fica no círculo central.
+  if (!layout) {
+    ctx.beginPath();
+    ctx.arc(size / 2, size / 2, innerRadius(size), 0, Math.PI * 2);
+    ctx.clip();
+  }
+
+  // Mesmo fundo do servidor para onde a foto não alcança.
+  ctx.fillStyle = "#e5e7eb";
+  ctx.fillRect(0, 0, size, size);
 
   if (image) {
     const placement = placePhoto({
@@ -81,6 +95,7 @@ export function drawPreview(
       offsetX: framing.offsetX,
       offsetY: framing.offsetY,
       size,
+      hole,
     });
 
     ctx.drawImage(image, placement.left, placement.top, placement.width, placement.height);
@@ -89,12 +104,23 @@ export function drawPreview(
     ctx.fillStyle = "#dfe6f1";
     ctx.fillRect(0, 0, size, size);
     ctx.fillStyle = "#a9b6c9";
+
+    // A silhueta acompanha o furo (mesmas proporções da moldura neutra).
+    const unit = (hole.r / CENTER_HOLE.r) * size;
+    const centerX = hole.cx * size;
+    const centerY = hole.cy * size;
+
     ctx.beginPath();
-    ctx.arc(size / 2, size * 0.41, size * 0.15, 0, Math.PI * 2);
+    ctx.arc(centerX, centerY - unit * 0.09, unit * 0.15, 0, Math.PI * 2);
     ctx.fill();
     ctx.beginPath();
-    ctx.ellipse(size / 2, size * 0.98, size * 0.33, size * 0.32, 0, Math.PI, 0);
+    ctx.ellipse(centerX, centerY + unit * 0.48, unit * 0.33, unit * 0.32, 0, Math.PI, 0);
     ctx.fill();
+  }
+
+  if (layout) {
+    ctx.globalCompositeOperation = "destination-in";
+    ctx.drawImage(layout.mask, 0, 0, size, size);
   }
 
   ctx.restore();

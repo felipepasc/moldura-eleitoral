@@ -1,4 +1,4 @@
-import { DEFAULT_FRAME_STYLE, findCandidate, findFrameStyle, frameFileName } from "@moldura/common";
+import { DEFAULT_FRAME_STYLE, findCandidate, findFrameStyle, frameFileName, frameMaskFileName } from "@moldura/common";
 import type { FrameStyleId } from "@moldura/common";
 
 const NEUTRAL_PREVIEW_FRAME = "/frames/neutral.png";
@@ -12,13 +12,18 @@ export function initialCandidateId(param: string | string[] | undefined): string
   return param;
 }
 
-// Estilo pelo link (?e=<estilo>): só ids conhecidos; senão a clássica.
-export function initialFrameStyle(param: string | string[] | undefined): FrameStyleId {
+// Modelo pelo link (?e=<modelo>): só os que aquele candidato tem; senão o primeiro.
+export function initialFrameStyle(param: string | string[] | undefined, candidateId: string): FrameStyleId {
   if (typeof param !== "string") {
     return DEFAULT_FRAME_STYLE;
   }
 
-  return findFrameStyle(param)?.id ?? DEFAULT_FRAME_STYLE;
+  return findFrameStyle(param, candidateId)?.id ?? DEFAULT_FRAME_STYLE;
+}
+
+// Ao trocar de candidato, o modelo escolhido só continua se o novo candidato também tiver.
+export function styleForCandidate(style: FrameStyleId, candidateId: string): FrameStyleId {
+  return findFrameStyle(style, candidateId)?.id ?? DEFAULT_FRAME_STYLE;
 }
 
 // Chave da moldura (candidato + estilo), igual ao nome do arquivo sem extensão; "" sem candidato.
@@ -39,7 +44,16 @@ export function previewFrameSrc(candidateId: string, style: FrameStyleId = DEFAU
   return `/frames/${frameFileName(candidateId, style)}`;
 }
 
-// Miniatura do estilo no seletor (WebP de 480 px gerado pelo sync-frames).
+// Máscara da foto daquela moldura (onde a foto aparece); sem candidato a prévia usa o círculo central.
+export function previewMaskSrc(candidateId: string, style: FrameStyleId = DEFAULT_FRAME_STYLE): string | null {
+  if (!candidateId) {
+    return null;
+  }
+
+  return `/frames/${frameMaskFileName(candidateId, style)}`;
+}
+
+// Miniatura do modelo no seletor (WebP de 480 px gerado pelo sync-frames).
 export function frameThumbSrc(candidateId: string, style: FrameStyleId): string {
   return `/frames/${frameKey(candidateId, style)}.webp`;
 }

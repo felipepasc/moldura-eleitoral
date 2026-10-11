@@ -9,7 +9,7 @@ export default async function CreatePage({ searchParams }: { searchParams: Promi
     <main>
       <PageHeader title="Criar minha moldura">Escolha a foto e a moldura. A prévia é grátis e aparece na hora.</PageHeader>
       <div className="wrap">
-        <FrameEditor initialCandidateId={initialCandidateId(c)} initialStyle={initialFrameStyle(e)} />
+        <FrameEditor initialCandidateId={initialCandidateId(c)} initialStyle={initialFrameStyle(e, initialCandidateId(c))} />
       </div>
     </main>
   );

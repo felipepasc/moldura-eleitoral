@@ -1,17 +1,20 @@
 import { AiBadge } from "@/components/AiBadge";
-import { artSrc, displayName, frameSrc } from "@/lib/art";
+import { artSrc, displayName, frameMaskSrc, frameSrc } from "@/lib/art";
+import { maskStyle } from "@/lib/mask-style";
 
 type FramedPortraitProps = { id: string; name: string; badge?: "sm" | "md" | "lg" | "none"; decorative?: boolean; eager?: boolean; frameAlt?: string };
 
-// Ilustração (ou silhueta genérica) recortada em círculo, com a moldura do candidato por cima.
+// Ilustração (ou silhueta genérica) recortada no furo da moldura, com a moldura por cima.
+// Molduras de candidato têm máscara própria; as geradas (exemplo, neutra) usam o círculo central.
 // O selo de IA aparece sempre que a imagem mostrada é uma ilustração gerada por IA.
 export function FramedPortrait({ id, name, badge = "md", decorative = false, eager = false, frameAlt }: FramedPortraitProps) {
   const art = artSrc(id);
   const readable = displayName(name);
+  const mask = frameMaskSrc(id);
 
   return (
     <div className="portrait">
-      <div className="portrait-photo">
+      <div className={mask ? "portrait-photo is-masked" : "portrait-photo"} style={maskStyle(mask)}>
         {art ? (
           <img src={art} alt={decorative ? "" : `Ilustração estilizada, gerada por IA, de ${readable}`} loading={eager ? "eager" : "lazy"} decoding="async" width={640} height={640} />
         ) : (

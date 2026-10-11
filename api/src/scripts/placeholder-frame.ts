@@ -3,8 +3,13 @@ import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 import opentype from "opentype.js";
 import type { Font } from "opentype.js";
-import { DEFAULT_FRAME_STYLE, FRAME_RING_RATIO, FRAME_SIZE, innerRadius } from "@moldura/common";
-import type { Candidate, FrameStyleId } from "@moldura/common";
+import { FRAME_RING_RATIO, FRAME_SIZE, innerRadius } from "@moldura/common";
+import type { Candidate } from "@moldura/common";
+
+// Desenhos que o gerador sabe fazer (hoje só o clássico é usado, na neutra e na de exemplo).
+export const PLACEHOLDER_STYLES = ["classica", "faixa", "listras", "fina", "ondas", "geometrica"] as const;
+export type PlaceholderStyle = (typeof PLACEHOLDER_STYLES)[number];
+const DEFAULT_PLACEHOLDER_STYLE: PlaceholderStyle = "classica";
 
 // O que o desenho da moldura precisa: um candidato serve; a moldura neutra (sem número) também.
 export type FrameSpec = Pick<Candidate, "id" | "frameName" | "colors"> & { number?: string };
@@ -390,7 +395,7 @@ function geometricaSvg(candidate: FrameSpec): string {
     ${candidate.number === undefined ? "" : badgeAt(candidate.number, ring * 0.38, badgeFill, main, 6, badgeText)}`);
 }
 
-export function buildFrameSvg(candidate: FrameSpec, style: FrameStyleId = DEFAULT_FRAME_STYLE): string {
+export function buildFrameSvg(candidate: FrameSpec, style: PlaceholderStyle = DEFAULT_PLACEHOLDER_STYLE): string {
   const missing = missingGlyphs(candidate.frameName + (candidate.number ?? "") + "·");
 
   if (missing.length > 0) {
@@ -413,7 +418,7 @@ export function buildFrameSvg(candidate: FrameSpec, style: FrameStyleId = DEFAUL
   }
 }
 
-export async function renderPlaceholderFrame(candidate: FrameSpec, style: FrameStyleId = DEFAULT_FRAME_STYLE): Promise<Buffer> {
+export async function renderPlaceholderFrame(candidate: FrameSpec, style: PlaceholderStyle = DEFAULT_PLACEHOLDER_STYLE): Promise<Buffer> {
   return sharp(Buffer.from(buildFrameSvg(candidate, style))).png().toBuffer();
 }
 

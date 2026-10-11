@@ -4,13 +4,15 @@ import { useEffect, useRef, useState } from "react";
 import type { DragEvent, KeyboardEvent, PointerEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CANDIDATES, FRAME_STYLES, MAX_ZOOM, PHOTO_MAX_BYTES, PHOTO_MIME_TYPES, PRICE_CENTS, candidatesBy } from "@moldura/common";
+import { CANDIDATES, MAX_ZOOM, PHOTO_MAX_BYTES, PHOTO_MIME_TYPES, PRICE_CENTS, candidatesBy, frameHole, frameStylesFor } from "@moldura/common";
 import type { FrameStyleId, Framing } from "@moldura/common";
 import { createOrder, getSalesStatus, messageOf } from "@/lib/api";
 import { sortCandidatesAlphabetically } from "@/lib/candidate-order";
-import { SALES_CLOSED_MESSAGE, canSubmit, frameFailed, frameKey, frameLoaded, frameLoading, frameThumbSrc, isFrameFailed, isFrameReady, payHint as describePayHint, previewFrameSrc } from "@/lib/frame-choice";
+import { SALES_CLOSED_MESSAGE, canSubmit, frameFailed, frameKey, frameLoaded, frameLoading, frameThumbSrc, isFrameFailed, isFrameReady, payHint as describePayHint, previewFrameSrc, previewMaskSrc, styleForCandidate } from "@/lib/frame-choice";
 import type { FrameStatus } from "@/lib/frame-choice";
+import { maskStyle } from "@/lib/mask-style";
 import { drawPreview } from "@/lib/preview";
+import type { PreviewLayout } from "@/lib/preview";
 import { PREVIEW_SIZE, dragFraming } from "@/lib/preview-geometry";
 import { BLACKOUT_MS, isCaptureShortcut } from "@/lib/protection";
 
@@ -20,7 +22,18 @@ const KEY_STEP = 0.02;
 const clamp = (value: number) => Math.min(1, Math.max(-1, value));
 const price = (PRICE_CENTS / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-type LoadedFrame = { id: string; image: HTMLImageElement };
+// layout: máscara e furo da moldura do candidato; null na moldura neutra (círculo central).
+type LoadedFrame = { id: string; image: HTMLImageElement; layout: PreviewLayout | null };
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const element = new Image();
+
+    element.onload = () => resolve(element);
+    element.onerror = () => reject(new Error("imagem não carregou"));
+    element.src = src;
+  });
+}
 
 type Drag = { x: number; y: number; offsetX: number; offsetY: number };
 
@@ -34,6 +47,7 @@ export function FrameEditor({ initialCandidateId, initialStyle }: { initialCandi
   const [frameStyle, setFrameStyle] = useState<FrameStyleId>(initialStyle);
   const styleRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const currentKey = frameKey(candidateId, frameStyle);
+  const styles = frameStylesFor(candidateId);
   const [file, setFile] = useState<File | null>(null);
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [frame, setFrame] = useState<LoadedFrame | null>(null);
@@ -147,24 +161,26 @@ export function FrameEditor({ initialCandidateId, initialStyle }: { initialCandi
   // O status da moldura fica separado do erro genérico (que escolher a foto limpa).
   useEffect(() => {
     let active = true;
-    const element = new Image();
-
     const key = frameKey(candidateId, frameStyle);
+    const maskSrc = previewMaskSrc(candidateId, frameStyle);
+    const hole = frameHole(candidateId, frameStyle);
 
     setFrameStatus(frameLoading(key));
-    element.onload = () => {
-      if (active) {
-        setFrame({ id: key, image: element });
-        setFrameStatus(frameLoaded(key));
-      }
-    };
-    element.onerror = () => {
-      if (active) {
-        setFrame(null);
-        setFrameStatus(frameFailed(key));
-      }
-    };
-    element.src = previewFrameSrc(candidateId, frameStyle);
+
+    // A moldura só fica pronta com a máscara junto: sem ela a foto sairia fora do furo.
+    Promise.all([loadImage(previewFrameSrc(candidateId, frameStyle)), maskSrc && hole ? loadImage(maskSrc) : null])
+      .then(([image, mask]) => {
+        if (active) {
+          setFrame({ id: key, image, layout: mask && hole ? { mask, hole } : null });
+          setFrameStatus(frameLoaded(key));
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setFrame(null);
+          setFrameStatus(frameFailed(key));
+        }
+      });
 
     return () => {
       active = false;
@@ -208,7 +224,9 @@ export function FrameEditor({ initialCandidateId, initialStyle }: { initialCandi
 
   useEffect(() => {
     if (canvasRef.current) {
-      drawPreview(canvasRef.current, image, frame && frame.id === currentKey ? frame.image : null, framing, shortcutHidden || awayHidden);
+      const shown = frame && frame.id === currentKey ? frame : null;
+
+      drawPreview(canvasRef.current, image, shown ? shown.image : null, framing, shortcutHidden || awayHidden, shown ? shown.layout : null);
     }
   }, [image, frame, framing, candidateId, shortcutHidden, awayHidden]);
 
@@ -319,7 +337,7 @@ export function FrameEditor({ initialCandidateId, initialStyle }: { initialCandi
 
   // Seletor de estilo como grupo de rádio: setas mudam a escolha e o foco; Home/End vão às pontas.
   function moveStyle(event: KeyboardEvent<HTMLButtonElement>, index: number) {
-    const total = FRAME_STYLES.length;
+    const total = styles.length;
     const targets: Record<string, number> = {
       ArrowRight: (index + 1) % total,
       ArrowDown: (index + 1) % total,
@@ -335,7 +353,7 @@ export function FrameEditor({ initialCandidateId, initialStyle }: { initialCandi
     }
 
     event.preventDefault();
-    setFrameStyle(FRAME_STYLES[next].id);
+    setFrameStyle(styles[next].id);
     styleRefs.current[next]?.focus();
   }
 
@@ -457,7 +475,12 @@ export function FrameEditor({ initialCandidateId, initialStyle }: { initialCandi
           </div>
           <div className="frame-picker">
             <img className="frame-picker-thumb" src={candidateId ? frameThumbSrc(candidateId, frameStyle) : "/frames/neutral.webp"} alt="" width={56} height={56} draggable={false} />
-            <select id="candidate" value={candidateId} onChange={(event) => setCandidateId(event.target.value)}>
+            <select id="candidate" value={candidateId} onChange={(event) => {
+                const chosen = event.target.value;
+
+                setCandidateId(chosen);
+                setFrameStyle((current) => styleForCandidate(current, chosen));
+              }}>
               <option value="" disabled>
                 Escolha uma moldura…
               </option>
@@ -471,10 +494,10 @@ export function FrameEditor({ initialCandidateId, initialStyle }: { initialCandi
           {candidateId ? (
             <div className="styles">
               <p className="styles-label" id="styles-label">
-                Estilo da moldura
+                Modelo da moldura
               </p>
               <div className="styles-grid" role="radiogroup" aria-labelledby="styles-label">
-                {FRAME_STYLES.map((style, index) => {
+                {styles.map((style, index) => {
                   const selected = style.id === frameStyle;
 
                   return (
@@ -492,6 +515,7 @@ export function FrameEditor({ initialCandidateId, initialStyle }: { initialCandi
                       onKeyDown={(event) => moveStyle(event, index)}
                     >
                       <span className="style-thumb" aria-hidden="true">
+                        <span className="style-thumb-photo" style={maskStyle(previewMaskSrc(candidateId, style.id))} />
                         <img src={frameThumbSrc(candidateId, style.id)} alt="" width={72} height={72} draggable={false} loading="lazy" />
                       </span>
                       <span className="style-name">{style.name}</span>

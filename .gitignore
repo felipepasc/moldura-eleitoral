@@ -8,3 +8,5 @@ dist
 web/public/frames
 web/next-env.d.ts
 .superpowers/
+# Artes originais baixadas (a versão usada fica em api/assets/frames)
+downloads/

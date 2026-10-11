@@ -42,7 +42,7 @@ function DownloadIcon() {
 
 const STEPS = [
   { title: "Envie sua foto", text: "Escolha uma foto do celular ou do computador.", icon: <UploadIcon /> },
-  { title: "Escolha a moldura", text: "Selecione o candidato e ajuste a foto no círculo.", icon: <FrameIcon /> },
+  { title: "Escolha a moldura", text: "Selecione o candidato e ajuste a foto na moldura.", icon: <FrameIcon /> },
   { title: "Baixe e compartilhe", text: `Pague o Pix de ${price}, baixe a foto e publique.`, icon: <DownloadIcon /> },
 ];
 

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CANDIDATES, CreateOrderSchema, FRAME_SIZE, FRAME_STYLES, findFrameStyle, frameFileName, OrderSchema, PARTIES, STATES, candidatesBy, findCandidate, findParty, innerRadius, placePhoto } from "./index";
+import { CANDIDATES, CENTER_HOLE, CreateOrderSchema, FRAME_SIZE, FRAME_STYLES, findFrameStyle, frameFileName, frameHole, frameMaskFileName, frameStylesFor, OrderSchema, PARTIES, STATES, candidatesBy, findCandidate, findParty, innerRadius, placePhoto } from "./index";
 
 test("innerRadius deixa 13% de anel de cada lado", () => {
   assert.equal(innerRadius(FRAME_SIZE), 540 - 140.4);
@@ -161,26 +161,81 @@ test("OrderSchema: id é uuid e downloadUrl é URL http/https ou null", () => {
   assert.equal(OrderSchema.safeParse({ ...order, downloadUrl: "não é url" }).success, false);
 });
 
-test("FRAME_STYLES tem os 13 estilos, nesta ordem, e findFrameStyle acha por id", () => {
-  assert.deepEqual(FRAME_STYLES.map((style) => style.id), ["classica", "faixa", "listras", "fina", "ondas", "geometrica", "campanha", "vibrante", "moderna", "retro", "metalica", "torcida", "estrela"]);
-  assert.deepEqual(FRAME_STYLES.slice(6).map((style) => style.name), ["Campanha", "Vibrante", "Moderna", "Retrô", "Metálica", "Torcida", "Destaque"]);
-  assert.equal(frameFileName("flavio-bolsonaro", "estrela"), "flavio-bolsonaro--estrela.png");
-  assert.equal(findFrameStyle("partido"), undefined);
-  assert.equal(findFrameStyle("faixa")?.name, "Faixa");
-  assert.equal(findFrameStyle("xyz"), undefined);
+test("FRAME_STYLES são modelos numerados; cada candidato tem os seus (Lula 6, Flávio 5)", () => {
+  assert.deepEqual(FRAME_STYLES.map((style) => style.id), ["modelo-1", "modelo-2", "modelo-3", "modelo-4", "modelo-5", "modelo-6"]);
+  assert.deepEqual(FRAME_STYLES.map((style) => style.name), ["Modelo 1", "Modelo 2", "Modelo 3", "Modelo 4", "Modelo 5", "Modelo 6"]);
+  assert.equal(frameStylesFor("lula").length, 6);
+  assert.equal(frameStylesFor("flavio-bolsonaro").length, 5);
+  assert.deepEqual(frameStylesFor("ninguem"), []);
+
+  for (const candidate of CANDIDATES) {
+    assert.ok(frameStylesFor(candidate.id).length > 0, candidate.id);
+  }
 });
 
-test("frameFileName mantém o nome antigo para a clássica e usa -- nos demais", () => {
-  assert.equal(frameFileName("lula", "classica"), "lula.png");
-  assert.equal(frameFileName("flavio-bolsonaro", "faixa"), "flavio-bolsonaro--faixa.png");
-  assert.equal(frameFileName("lula", "fina"), "lula--fina.png");
+test("findFrameStyle acha por id e, com candidato, só os modelos que ele tem; estilos antigos não existem mais", () => {
+  assert.equal(findFrameStyle("modelo-2")?.name, "Modelo 2");
+  assert.equal(findFrameStyle("modelo-6", "lula")?.id, "modelo-6");
+  assert.equal(findFrameStyle("modelo-6", "flavio-bolsonaro"), undefined);
+  assert.equal(findFrameStyle("modelo-1", "ninguem"), undefined);
+
+  for (const old of ["classica", "faixa", "estrela", "partido", "xyz"]) {
+    assert.equal(findFrameStyle(old), undefined, old);
+  }
 });
 
-test("CreateOrderSchema: frameStyle é opcional (padrão classica) e rejeita estilo desconhecido", () => {
+test("frameFileName: o primeiro modelo usa <candidato>.png e os demais usam --; a máscara fica em masks/", () => {
+  assert.equal(frameFileName("lula", "modelo-1"), "lula.png");
+  assert.equal(frameFileName("flavio-bolsonaro", "modelo-2"), "flavio-bolsonaro--modelo-2.png");
+  assert.equal(frameMaskFileName("lula", "modelo-1"), "masks/lula.png");
+  assert.equal(frameMaskFileName("lula", "modelo-6"), "masks/lula--modelo-6.png");
+});
+
+test("frameHole: toda moldura tem furo perto do meio da imagem; modelo que o candidato não tem não tem furo", () => {
+  for (const candidate of CANDIDATES) {
+    for (const style of frameStylesFor(candidate.id)) {
+      const hole = frameHole(candidate.id, style.id);
+
+      assert.ok(hole, `${candidate.id} ${style.id}`);
+      assert.ok(hole.r > 0.3 && hole.r < 0.5);
+      assert.ok(Math.abs(hole.cx - 0.5) < 0.05);
+      assert.ok(hole.cy > 0.3 && hole.cy <= 0.5);
+    }
+  }
+
+  assert.equal(frameHole("flavio-bolsonaro", "modelo-6"), undefined);
+  assert.equal(frameHole("ninguem", "modelo-1"), undefined);
+});
+
+test("placePhoto com furo: a foto cobre o quadrado do furo e fica centrada nele", () => {
+  const hole = { cx: 0.5, cy: 0.4, r: 0.39 };
+  const wide = placePhoto({ imageWidth: 2000, imageHeight: 1000, zoom: 1, offsetX: 0, offsetY: 0, hole });
+
+  assert.ok(Math.abs(wide.height - 0.78 * FRAME_SIZE) < 1e-6);
+  assert.ok(Math.abs(wide.top + wide.height / 2 - 0.4 * FRAME_SIZE) < 1e-6);
+  assert.ok(Math.abs(wide.left + wide.width / 2 - 0.5 * FRAME_SIZE) < 1e-6);
+  assert.ok(wide.left <= (hole.cx - hole.r) * FRAME_SIZE && wide.left + wide.width >= (hole.cx + hole.r) * FRAME_SIZE);
+
+  const moved = placePhoto({ imageWidth: 1000, imageHeight: 1000, zoom: 2, offsetX: 0.1, offsetY: -0.1, hole, size: 540 });
+
+  assert.ok(Math.abs(moved.width - 0.78 * 540 * 2) < 1e-6);
+  assert.ok(Math.abs(moved.left + moved.width / 2 - (0.5 + 0.1) * 540) < 1e-6);
+  assert.ok(Math.abs(moved.top + moved.height / 2 - (0.4 - 0.1) * 540) < 1e-6);
+});
+
+test("placePhoto sem furo usa o círculo central das molduras geradas", () => {
+  const placement = placePhoto({ imageWidth: 1000, imageHeight: 1000, zoom: 1, offsetX: 0, offsetY: 0 });
+
+  assert.ok(Math.abs(placement.width - innerRadius(FRAME_SIZE) * 2) < 1e-6);
+  assert.ok(Math.abs(placement.left + placement.width / 2 - FRAME_SIZE / 2) < 1e-6);
+  assert.ok(Math.abs(CENTER_HOLE.r * FRAME_SIZE - innerRadius(FRAME_SIZE)) < 1e-6);
+});
+
+test("CreateOrderSchema: frameStyle é opcional (padrão modelo-1) e rejeita estilo desconhecido", () => {
   const base = { candidateId: "lula", framing: { zoom: 1, offsetX: 0, offsetY: 0 }, consent: "true" };
 
-  assert.equal(CreateOrderSchema.parse(base).frameStyle, "classica");
-  assert.equal(CreateOrderSchema.parse({ ...base, frameStyle: "listras" }).frameStyle, "listras");
+  assert.equal(CreateOrderSchema.parse(base).frameStyle, "modelo-1");
+  assert.equal(CreateOrderSchema.parse({ ...base, frameStyle: "modelo-4" }).frameStyle, "modelo-4");
   assert.equal(CreateOrderSchema.safeParse({ ...base, frameStyle: "neon" }).success, false);
-  assert.equal(CreateOrderSchema.parse({ ...base, frameStyle: "geometrica" }).frameStyle, "geometrica");
+  assert.equal(CreateOrderSchema.safeParse({ ...base, frameStyle: "classica" }).success, false);
 });

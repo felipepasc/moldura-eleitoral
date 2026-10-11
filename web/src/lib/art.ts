@@ -1,3 +1,4 @@
+import { DEFAULT_FRAME_STYLE, findFrameStyle, frameMaskFileName } from "@moldura/common";
 import type { Candidate } from "@moldura/common";
 
 // Ilustrações estilizadas geradas por IA e aprovadas, em web/public/art/<id>.webp (640×640).
@@ -33,6 +34,15 @@ export function artSrc(id: string): string | null {
 // Moldura reduzida (WebP 480 px, gerada por scripts/sync-frames.mjs) para a home; o /criar usa o PNG de 1080 px.
 export function frameSrc(id: string): string {
   return `/frames/${id}.webp`;
+}
+
+// Máscara da foto da moldura que a home mostra (o primeiro modelo do candidato); null para as molduras geradas.
+export function frameMaskSrc(id: string): string | null {
+  if (!findFrameStyle(DEFAULT_FRAME_STYLE, id)) {
+    return null;
+  }
+
+  return `/frames/${frameMaskFileName(id, DEFAULT_FRAME_STYLE)}`;
 }
 
 export function withArt(candidates: readonly Candidate[]): Candidate[] {

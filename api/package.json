@@ -11,6 +11,7 @@
     "db:setup": "tsx --env-file-if-exists=.env src/scripts/setup-db.ts",
     "frames:placeholder": "tsx src/scripts/make-placeholder-frames.ts",
     "frames:build": "tsx src/scripts/make-placeholder-frames.ts",
+    "frames:import": "tsx src/scripts/import-frame.ts",
     "frames:sheet": "tsx src/scripts/make-styles-sheet.ts",
     "test": "tsx --env-file=.env.test src/scripts/setup-db.ts && tsx --env-file=.env.test --test --test-concurrency=1 \"src/**/*.check.ts\""
   },

@@ -1,7 +1,7 @@
 import path from "node:path";
 import { and, eq, ne } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
-import { DEFAULT_FRAME_STYLE, findFrameStyle, frameFileName } from "@moldura/common";
+import { DEFAULT_FRAME_STYLE, findFrameStyle, frameFileName, frameHole, frameMaskFileName } from "@moldura/common";
 import type { FrameStyleId } from "@moldura/common";
 import { orderRef } from "@/core/log-ref";
 import type { OrderContext } from "@/modules/orders/context";
@@ -13,9 +13,9 @@ const CHECK_INTERVAL_MS = 5_000;
 const RECOMPOSE_INTERVAL_MS = 30_000;
 const MAX_TRACKED_ORDERS = 5_000;
 
-// NULL (pedidos antigos) ou valor desconhecido caem na clássica.
+// NULL, modelo que o candidato não tem ou estilo antigo (molduras trocadas) caem no primeiro modelo.
 function frameStyleOf(row: OrderRow): FrameStyleId {
-  const style = row.frameStyle ? findFrameStyle(row.frameStyle) : undefined;
+  const style = row.frameStyle ? findFrameStyle(row.frameStyle, row.candidateId) : undefined;
 
   return style ? style.id : DEFAULT_FRAME_STYLE;
 }
@@ -118,8 +118,16 @@ export async function confirmOrder(ctx: OrderContext, row: OrderRow): Promise<Or
     }
 
     const photo = await ctx.storage.get(row.photoKey);
-    const framePath = path.join(ctx.framesDir, frameFileName(row.candidateId, frameStyleOf(row)));
-    const image = await composeImage(photo, row.framing, framePath);
+    const style = frameStyleOf(row);
+    const hole = frameHole(row.candidateId, style);
+
+    if (!hole) {
+      throw new Error("Moldura do pedido não encontrada.");
+    }
+
+    const framePath = path.join(ctx.framesDir, frameFileName(row.candidateId, style));
+    const maskPath = path.join(ctx.framesDir, frameMaskFileName(row.candidateId, style));
+    const image = await composeImage(photo, row.framing, framePath, { maskPath, hole });
     const resultKey = `results/${row.id}.png`;
 
     await ctx.storage.put(resultKey, image, "image/png");

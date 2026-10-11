@@ -20,7 +20,7 @@ export type Framing = z.infer<typeof FramingSchema>;
 export const CreateOrderSchema = z.object({
   candidateId: z.string().refine((id) => findCandidate(id) !== undefined, "Candidato inválido"),
   framing: FramingSchema,
-  // Estilo da moldura; ausente (clientes antigos) vale a clássica.
+  // Modelo da moldura; ausente vale o primeiro. Se o candidato tem aquele modelo, quem confere é a api.
   frameStyle: z.enum(FRAME_STYLE_IDS).default(DEFAULT_FRAME_STYLE),
   // Consentimento para tratar a foto e a moldura (dado sensível: revela preferência política).
   consent: z.literal("true"),

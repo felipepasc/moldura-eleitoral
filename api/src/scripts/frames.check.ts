@@ -1,9 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
-import { CANDIDATES, CreateOrderSchema, FRAME_STYLES, PARTIES, findCandidate, findParty, frameFileName } from "@moldura/common";
-import { EXEMPLO_FRAME, GENERATED_FRAMES, NEUTRAL_FRAME, buildFrameSvg, missingGlyphs, renderPlaceholderFrame, validateFrame } from "@/scripts/placeholder-frame";
+import { CANDIDATES, CreateOrderSchema, PARTIES, findCandidate, findParty, frameFileName, frameHole, frameMaskFileName, frameStylesFor } from "@moldura/common";
+import { buildMask, measureFrame } from "@/scripts/frame-assets";
+import { EXEMPLO_FRAME, GENERATED_FRAMES, NEUTRAL_FRAME, PLACEHOLDER_STYLES, buildFrameSvg, missingGlyphs, renderPlaceholderFrame, validateFrame } from "@/scripts/placeholder-frame";
 
 const FRAMES_DIR = path.resolve("assets/frames");
 const MIN_PARTY_DISTANCE = 60;
@@ -97,30 +98,54 @@ test("o validador acusa moldura com centro opaco", async () => {
 });
 
 for (const candidate of CANDIDATES) {
-  for (const style of FRAME_STYLES) {
-    test(`assets/frames/${frameFileName(candidate.id, style.id)} existe e é válida`, async () => {
-      const png = await readFile(path.join(FRAMES_DIR, frameFileName(candidate.id, style.id)));
-
-      assert.deepEqual(await validateFrame(png), []);
-    });
-
-    test(`estilo ${style.id} de ${candidate.id}: só glifos, nome longo cabe e o selo não toca o disco`, async () => {
-      const svg = buildFrameSvg(candidate, style.id);
+  for (const style of PLACEHOLDER_STYLES) {
+    test(`desenho ${style} de ${candidate.id}: só glifos, nome longo cabe e o selo não toca o disco`, async () => {
+      const svg = buildFrameSvg(candidate, style);
 
       assert.ok(!svg.includes("<text"));
       assert.ok(!svg.includes("<image"));
-      assert.deepEqual(await validateFrame(await renderPlaceholderFrame(candidate, style.id)), []);
+      assert.deepEqual(await validateFrame(await renderPlaceholderFrame(candidate, style)), []);
+    });
+  }
+
+  for (const style of frameStylesFor(candidate.id)) {
+    const file = frameFileName(candidate.id, style.id);
+
+    test(`assets/frames/${file} existe, tem máscara e o furo confere com o do common`, async () => {
+      const sharp = (await import("sharp")).default;
+      const frame = await readFile(path.join(FRAMES_DIR, file));
+      const mask = await sharp(path.join(FRAMES_DIR, frameMaskFileName(candidate.id, style.id))).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+      const measured = await measureFrame(frame);
+      const hole = frameHole(candidate.id, style.id);
+
+      assert.ok(hole, "furo declarado no common");
+      assert.deepEqual(measured.hole, hole);
+      assert.equal(mask.info.width, 1080);
+      assert.equal(mask.info.height, 1080);
+
+      // No meio do furo a moldura é transparente e a máscara deixa a foto aparecer.
+      const middle = Math.round(hole.cy * 1080) * 1080 + Math.round(hole.cx * 1080);
+
+      assert.equal(measured.alpha[middle], 0);
+      assert.equal(mask.data[middle * 4 + 3], 255);
+
+      // A máscara guardada é a que o frames:import geraria hoje.
+      const rebuilt = await sharp(await buildMask(measured.inside)).raw().toBuffer();
+
+      assert.ok(rebuilt.equals(mask.data), "máscara desatualizada: rode frames:import");
     });
   }
 }
 
-test("os estilos geram imagens diferentes entre si", async () => {
+test("os modelos de cada candidato são imagens diferentes entre si", async () => {
   for (const candidate of CANDIDATES) {
-    const files = await Promise.all(FRAME_STYLES.map((style) => readFile(path.join(FRAMES_DIR, frameFileName(candidate.id, style.id)))));
+    const files = await Promise.all(frameStylesFor(candidate.id).map((style) => readFile(path.join(FRAMES_DIR, frameFileName(candidate.id, style.id)))));
+
+    assert.ok(files.length > 0, candidate.id);
 
     for (let first = 0; first < files.length; first += 1) {
       for (let second = first + 1; second < files.length; second += 1) {
-        assert.ok(!files[first].equals(files[second]), `${candidate.id}: estilos ${first} e ${second} iguais`);
+        assert.ok(!files[first].equals(files[second]), `${candidate.id}: modelos ${first} e ${second} iguais`);
       }
     }
   }
@@ -192,7 +217,7 @@ test("Missão é amarelo e preto, com nome e número legíveis", () => {
 });
 
 test("frames:build só gera a neutra e a de exemplo: nunca sobrescreve as molduras curadas dos candidatos", async () => {
-  const candidateFiles = new Set(CANDIDATES.flatMap((candidate) => FRAME_STYLES.map((style) => frameFileName(candidate.id, style.id))));
+  const candidateFiles = new Set(CANDIDATES.flatMap((candidate) => frameStylesFor(candidate.id).map((style) => frameFileName(candidate.id, style.id))));
   const targets = GENERATED_FRAMES.map((frame) => `${frame.id}.png`);
 
   assert.deepEqual(targets.sort(), ["exemplo.png", "neutral.png"]);
@@ -207,18 +232,10 @@ test("frames:build só gera a neutra e a de exemplo: nunca sobrescreve as moldur
   assert.ok(script.includes("GENERATED_FRAMES"));
 });
 
-test("cada moldura curada tem o furo do tamanho certo (transparente até o raio interno, opaca logo depois)", async () => {
-  const sharp = (await import("sharp")).default;
+test("assets/frames só tem as molduras em uso (nenhuma antiga fica para trás)", async () => {
+  const curated = CANDIDATES.flatMap((candidate) => frameStylesFor(candidate.id).map((style) => frameFileName(candidate.id, style.id)));
+  const expected = [...curated, ...GENERATED_FRAMES.map((frame) => `${frame.id}.png`)].sort();
 
-  for (const candidate of CANDIDATES) {
-    for (const style of FRAME_STYLES) {
-      const { data, info } = await sharp(path.join(FRAMES_DIR, frameFileName(candidate.id, style.id))).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-      const alpha = (x: number, y: number) => data[(y * info.width + x) * 4 + 3];
-
-      for (const [dx, dy] of [[1, 0], [0, 1], [-1, 0], [0, -1]]) {
-        assert.equal(alpha(540 + dx * 395, 540 + dy * 395), 0, `${candidate.id}/${style.id} furo`);
-        assert.ok(alpha(540 + dx * 410, 540 + dy * 410) > 200, `${candidate.id}/${style.id} anel`);
-      }
-    }
-  }
+  assert.deepEqual((await readdir(FRAMES_DIR)).filter((file) => file.endsWith(".png")).sort(), expected);
+  assert.deepEqual((await readdir(path.join(FRAMES_DIR, "masks"))).sort(), [...curated].sort());
 });

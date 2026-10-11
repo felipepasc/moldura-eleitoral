@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync, onRequestAsyncHookHandler } from "fastify";
 import { z } from "zod";
-import { CONSENT_REQUIRED_MESSAGE, CreateOrderSchema, PHOTO_MIME_TYPES } from "@moldura/common";
+import { CONSENT_REQUIRED_MESSAGE, CreateOrderSchema, PHOTO_MIME_TYPES, findFrameStyle } from "@moldura/common";
 import { badGateway, badReq, created, notFound, ok } from "@/core/http-fastify";
 import type { OrderContext } from "@/modules/orders/context";
 import { GatewayError, createOrder } from "@/modules/orders/services/create-order";
@@ -62,7 +62,10 @@ export function ordersRouter(ctx: OrderContext, ordersPerMinute: number, readsPe
         consent: fieldValue(file.fields.consent),
       };
 
-      if (!OrderDataSchema.safeParse(fields).success) {
+      const data = OrderDataSchema.safeParse(fields);
+
+      // Cada candidato tem a sua quantidade de modelos de moldura.
+      if (!data.success || !findFrameStyle(data.data.frameStyle, data.data.candidateId)) {
         return badReq(reply, "Dados do pedido inválidos.");
       }
 

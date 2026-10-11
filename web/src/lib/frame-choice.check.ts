@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { FRAME_LOAD_ERROR, canSubmit, frameKey, frameThumbSrc, initialFrameStyle, frameFailed, frameLoaded, frameLoading, initialCandidateId, isFrameReady, payHint, previewFrameSrc } from "./frame-choice";
+import { FRAME_LOAD_ERROR, canSubmit, frameKey, frameThumbSrc, initialFrameStyle, frameFailed, frameLoaded, frameLoading, initialCandidateId, isFrameReady, payHint, previewFrameSrc, previewMaskSrc, styleForCandidate } from "./frame-choice";
 
 test("sem ?c= válido, nenhuma moldura vem escolhida (nada de pré-selecionar o primeiro candidato)", () => {
   assert.equal(initialCandidateId(undefined), "");
@@ -95,39 +95,50 @@ test("as molduras neutra (prévia do /criar) e de exemplo (topo da home) existem
   }
 });
 
-test("estilo pelo link (?e=): só ids válidos; senão a clássica", () => {
-  assert.equal(initialFrameStyle("ondas"), "ondas");
-  assert.equal(initialFrameStyle("geometrica"), "geometrica");
-  assert.equal(initialFrameStyle(undefined), "classica");
-  assert.equal(initialFrameStyle(""), "classica");
-  assert.equal(initialFrameStyle("ONDAS"), "classica");
-  assert.equal(initialFrameStyle("../lula"), "classica");
-  assert.equal(initialFrameStyle(["ondas", "fina"]), "classica");
+test("modelo pelo link (?e=): só os que o candidato tem; senão o primeiro", () => {
+  assert.equal(initialFrameStyle("modelo-3", "lula"), "modelo-3");
+  assert.equal(initialFrameStyle("modelo-6", "lula"), "modelo-6");
+  assert.equal(initialFrameStyle("modelo-6", "flavio-bolsonaro"), "modelo-1");
+  assert.equal(initialFrameStyle("modelo-3", ""), "modelo-1");
+  assert.equal(initialFrameStyle(undefined, "lula"), "modelo-1");
+  assert.equal(initialFrameStyle("", "lula"), "modelo-1");
+  assert.equal(initialFrameStyle("MODELO-3", "lula"), "modelo-1");
+  assert.equal(initialFrameStyle("../lula", "lula"), "modelo-1");
+  assert.equal(initialFrameStyle(["modelo-2", "modelo-3"], "lula"), "modelo-1");
+
+  // Links antigos (estilos das molduras trocadas) caem no primeiro modelo.
+  for (const old of ["classica", "ondas", "estrela", "partido"]) {
+    assert.equal(initialFrameStyle(old, "lula"), "modelo-1", old);
+  }
 });
 
-test("prévia usa o PNG de 1080 do candidato + estilo; miniatura usa o WebP", () => {
-  assert.equal(previewFrameSrc("lula", "classica"), "/frames/lula.png");
-  assert.equal(previewFrameSrc("lula", "ondas"), "/frames/lula--ondas.png");
-  assert.equal(previewFrameSrc("flavio-bolsonaro", "fina"), "/frames/flavio-bolsonaro--fina.png");
-  assert.equal(previewFrameSrc("", "ondas"), "/frames/neutral.png");
-  assert.equal(frameThumbSrc("lula", "classica"), "/frames/lula.webp");
-  assert.equal(frameThumbSrc("lula", "listras"), "/frames/lula--listras.webp");
+test("trocar de candidato mantém o modelo só se o novo candidato também tiver", () => {
+  assert.equal(styleForCandidate("modelo-4", "flavio-bolsonaro"), "modelo-4");
+  assert.equal(styleForCandidate("modelo-6", "flavio-bolsonaro"), "modelo-1");
+  assert.equal(styleForCandidate("modelo-6", "lula"), "modelo-6");
+  assert.equal(styleForCandidate("modelo-2", ""), "modelo-1");
 });
 
-test("o status da moldura é por candidato + estilo: pronta em outro estilo não libera o pagamento", () => {
-  const ondas = frameKey("lula", "ondas");
-
-  assert.equal(ondas, "lula--ondas");
-  assert.equal(frameKey("lula", "classica"), "lula");
-  assert.equal(frameKey("", "ondas"), "");
-  assert.equal(isFrameReady(frameLoaded(frameKey("lula", "classica")), ondas), false);
-  assert.equal(isFrameReady(frameLoaded(ondas), ondas), true);
-  assert.equal(payHint({ candidateId: "lula", frameId: ondas, photoReady: true, ready: false, frame: frameLoaded("lula") }), "Carregando a moldura…");
-  assert.equal(payHint({ candidateId: "lula", frameId: ondas, photoReady: true, ready: false, frame: frameFailed(ondas) }), FRAME_LOAD_ERROR);
+test("prévia usa o PNG de 1080 e a máscara do candidato + modelo; miniatura usa o WebP", () => {
+  assert.equal(previewFrameSrc("lula", "modelo-1"), "/frames/lula.png");
+  assert.equal(previewFrameSrc("lula", "modelo-4"), "/frames/lula--modelo-4.png");
+  assert.equal(previewFrameSrc("flavio-bolsonaro", "modelo-2"), "/frames/flavio-bolsonaro--modelo-2.png");
+  assert.equal(previewFrameSrc("", "modelo-4"), "/frames/neutral.png");
+  assert.equal(previewMaskSrc("lula", "modelo-1"), "/frames/masks/lula.png");
+  assert.equal(previewMaskSrc("flavio-bolsonaro", "modelo-5"), "/frames/masks/flavio-bolsonaro--modelo-5.png");
+  assert.equal(previewMaskSrc("", "modelo-4"), null);
+  assert.equal(frameThumbSrc("lula", "modelo-1"), "/frames/lula.webp");
+  assert.equal(frameThumbSrc("lula", "modelo-3"), "/frames/lula--modelo-3.webp");
 });
 
-test("estilo estrela abre pelo link e o antigo ?e=partido (estilo removido) cai na clássica", () => {
-  assert.equal(initialFrameStyle("estrela"), "estrela");
-  assert.equal(initialFrameStyle("partido"), "classica");
-  assert.equal(frameKey("lula", "estrela"), "lula--estrela");
+test("o status da moldura é por candidato + modelo: pronta em outro modelo não libera o pagamento", () => {
+  const other = frameKey("lula", "modelo-4");
+
+  assert.equal(other, "lula--modelo-4");
+  assert.equal(frameKey("lula", "modelo-1"), "lula");
+  assert.equal(frameKey("", "modelo-4"), "");
+  assert.equal(isFrameReady(frameLoaded(frameKey("lula", "modelo-1")), other), false);
+  assert.equal(isFrameReady(frameLoaded(other), other), true);
+  assert.equal(payHint({ candidateId: "lula", frameId: other, photoReady: true, ready: false, frame: frameLoaded("lula") }), "Carregando a moldura…");
+  assert.equal(payHint({ candidateId: "lula", frameId: other, photoReady: true, ready: false, frame: frameFailed(other) }), FRAME_LOAD_ERROR);
 });
