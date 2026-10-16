@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { decideDownload, safeDownloadUrl } from "./download-url";
+import { DOWNLOAD_URL_FRESH_MS, decideDownload, isDownloadStale, safeDownloadUrl } from "./download-url";
 
 const ORIGIN = "http://localhost:9300";
 const URL_OK = "http://localhost:9300/moldura/results/a.png?X-Amz=1";
@@ -60,4 +60,13 @@ test("/pedido: link pago inutilizável vira indisponível (sem apagar nada) e li
   assert.deepEqual(decideDownload("paid", "https://evil.example/x.png", ORIGIN), { kind: "unavailable" });
   assert.deepEqual(decideDownload("paid", "javascript:alert(1)", ORIGIN), { kind: "unavailable" });
   assert.deepEqual(decideDownload("paid", `${ORIGIN}/results/a.png?sig=1`, ORIGIN), { kind: "ok", url: `${ORIGIN}/results/a.png?sig=1` });
+});
+
+test("link de download com mais de 4 minutos (ou relógio voltando) é renovado antes de baixar", () => {
+  const t0 = 1_000_000;
+
+  assert.equal(isDownloadStale(t0, t0), false);
+  assert.equal(isDownloadStale(t0, t0 + DOWNLOAD_URL_FRESH_MS - 1), false);
+  assert.equal(isDownloadStale(t0, t0 + DOWNLOAD_URL_FRESH_MS), true);
+  assert.equal(isDownloadStale(t0, t0 - 1), true);
 });

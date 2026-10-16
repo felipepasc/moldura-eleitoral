@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { MouseEvent } from "react";
 import Link from "next/link";
 import type { Order } from "@moldura/common";
 import { getOrder, messageOf, retryAfterOf, statusOf } from "@/lib/api";
-import { decideDownload } from "@/lib/download-url";
+import { decideDownload, isDownloadStale } from "@/lib/download-url";
 import { DEFAULT_IMAGES_ORIGIN, normalizeOrigin } from "@/lib/origin";
 import { POLL_BASE_MS, nextDelay, qrSource, retryDelay, shouldKeepPolling } from "@/lib/polling";
 import { SHARED_DEVICE_WARNING, browserStorage, removeSavedOrder, saveOrder } from "@/lib/my-orders";
@@ -18,6 +19,8 @@ export function OrderStatus({ id }: { id: string }) {
   const [notFound, setNotFound] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const [finished, setFinished] = useState(false);
+  const [fetchedAt, setFetchedAt] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
 
   const status = order?.status;
   const candidateId = order?.candidateId;
@@ -55,6 +58,7 @@ export function OrderStatus({ id }: { id: string }) {
         }
 
         setOrder(next);
+        setFetchedAt(Date.now());
         setError("");
         delay = nextDelay(delay, true);
 
@@ -124,6 +128,40 @@ export function OrderStatus({ id }: { id: string }) {
     setDismissed(true);
   }
 
+  // Busca o pedido de novo (link assinado novo). Devolve a URL de download válida, se houver.
+  async function refreshDownload(): Promise<string | null> {
+    setRefreshing(true);
+
+    try {
+      const next = await getOrder(id);
+      setOrder(next);
+      setFetchedAt(Date.now());
+      setError("");
+      const decision = decideDownload(next.status, next.downloadUrl, IMAGES_ORIGIN);
+
+      return decision.kind === "ok" ? decision.url : null;
+    } catch (caught) {
+      setError(messageOf(caught));
+
+      return null;
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  async function startDownload(event: MouseEvent<HTMLAnchorElement>) {
+    if (!isDownloadStale(fetchedAt, Date.now())) {
+      return;
+    }
+
+    event.preventDefault();
+    const url = await refreshDownload();
+
+    if (url) {
+      window.location.assign(url);
+    }
+  }
+
   async function copyCode(code: string) {
     try {
       await navigator.clipboard.writeText(code);
@@ -135,14 +173,25 @@ export function OrderStatus({ id }: { id: string }) {
 
   return (
     <div aria-live="polite">
-      <OrderView order={order} error={error} notFound={notFound} copied={copied} dismissed={dismissed} onCopy={copyCode} onDismiss={dismiss} />
+      <OrderView order={order} error={error} notFound={notFound} copied={copied} dismissed={dismissed} refreshing={refreshing} onCopy={copyCode} onDismiss={dismiss} onDownload={startDownload} onImageError={() => void refreshDownload()} />
     </div>
   );
 }
 
-type ViewProps = { order: Order | null; error: string; notFound: boolean; copied: boolean; dismissed: boolean; onCopy: (code: string) => void; onDismiss: () => void };
+type ViewProps = {
+  order: Order | null;
+  error: string;
+  notFound: boolean;
+  copied: boolean;
+  dismissed: boolean;
+  refreshing: boolean;
+  onCopy: (code: string) => void;
+  onDismiss: () => void;
+  onDownload: (event: MouseEvent<HTMLAnchorElement>) => void;
+  onImageError: () => void;
+};
 
-function OrderView({ order, error, notFound, copied, dismissed, onCopy, onDismiss }: ViewProps) {
+function OrderView({ order, error, notFound, copied, dismissed, refreshing, onCopy, onDismiss, onDownload, onImageError }: ViewProps) {
   if (notFound) {
     return (
       <section className="status-card">
@@ -182,26 +231,7 @@ function OrderView({ order, error, notFound, copied, dismissed, onCopy, onDismis
   }
 
   if (order.status === "paid" && download.kind === "ok") {
-    return (
-      <section className="status-card is-success">
-        <svg className="status-icon" viewBox="0 0 48 48" aria-hidden="true" focusable="false"><circle cx="24" cy="24" r="22" fill="currentColor" /><path d="M14 24.5l7 7 13-14" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" /></svg>
-        <h2>Pagamento confirmado! Sua foto está pronta.</h2>
-        <div className="row">
-          <a className="btn" href={download.url} rel="noreferrer noopener">Baixar foto</a>
-          <Link className="btn alt" href="/criar">Criar outra</Link>
-        </div>
-        <p className="hint">O link vale por poucos minutos; recarregue esta página para gerar outro. A imagem fica disponível por 7 dias.</p>
-        {dismissed ? (
-          <p className="hint">Este pedido não está guardado neste aparelho.</p>
-        ) : (
-          <>
-            <p className="hint">Guardamos este pedido neste aparelho por 7 dias. Veja em <Link href="/minhas">Minhas molduras</Link>.</p>
-            <div className="row"><button className="btn alt" onClick={onDismiss}>Não guardar neste aparelho</button></div>
-          </>
-        )}
-        <p className="hint">{SHARED_DEVICE_WARNING}</p>
-      </section>
-    );
+    return <ReadyView url={download.url} error={error} dismissed={dismissed} refreshing={refreshing} onDismiss={onDismiss} onDownload={onDownload} onImageError={onImageError} />;
   }
 
   if (order.status === "paid" || order.status === "paid_failed") {
@@ -254,6 +284,71 @@ function OrderView({ order, error, notFound, copied, dismissed, onCopy, onDismis
           </>
         ) : null}
         {error ? <p className="error" role="alert">{error}</p> : null}
+      </div>
+    </section>
+  );
+}
+
+type ReadyProps = {
+  url: string;
+  error: string;
+  dismissed: boolean;
+  refreshing: boolean;
+  onDismiss: () => void;
+  onDownload: (event: MouseEvent<HTMLAnchorElement>) => void;
+  onImageError: () => void;
+};
+
+function ReadyView({ url, error, dismissed, refreshing, onDismiss, onDownload, onImageError }: ReadyProps) {
+  // Uma tentativa de renovar o link por imagem quebrada (link vencido ao voltar para a aba); depois, só o botão.
+  const [retried, setRetried] = useState(false);
+
+  function imageFailed() {
+    if (!retried) {
+      setRetried(true);
+      onImageError();
+    }
+  }
+
+  return (
+    <section className="ready-card">
+      <figure className="ready-figure">
+        <img className="ready-image" src={url} alt="Sua foto pronta, com a moldura" width={1080} height={1080} onError={imageFailed} />
+      </figure>
+      <div className="ready-body">
+        <span className="ready-pill">
+          <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><circle cx="10" cy="10" r="9" fill="currentColor" /><path d="M6 10.3l2.7 2.7L14 7.6" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          Pagamento confirmado
+        </span>
+        <h2>Sua foto está pronta!</h2>
+        <p className="ready-sub">Sem marca d&apos;água, em alta qualidade (1080 × 1080). Baixe e use como foto de perfil.</p>
+        <div className="ready-actions">
+          <a className="btn btn-lg" href={url} rel="noreferrer noopener" onClick={onDownload} aria-busy={refreshing}>
+            <svg className="btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 19h14" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            {refreshing ? "Preparando…" : "Baixar foto"}
+          </a>
+          <Link className="btn btn-lg alt" href="/criar">Criar outra</Link>
+        </div>
+        {error ? <p className="error" role="alert">{error}</p> : null}
+        <div className="ready-howto">
+          <h3>Como usar no perfil</h3>
+          <ol>
+            <li><b>WhatsApp:</b> Configurações → toque na sua foto → Editar → escolha a imagem baixada.</li>
+            <li><b>Instagram:</b> Perfil → Editar perfil → Editar foto → escolha a imagem.</li>
+            <li>No recorte, deixe a moldura inteira dentro do círculo.</li>
+          </ol>
+        </div>
+        <div className="ready-foot">
+          <p>
+            A foto fica disponível por 7 dias.{" "}
+            {dismissed ? "Este pedido não está guardado neste aparelho." : <>Guardamos o pedido em <Link href="/minhas">Minhas molduras</Link> neste aparelho.</>}
+          </p>
+          {dismissed ? null : <button type="button" className="link-btn" onClick={onDismiss}>Não guardar neste aparelho</button>}
+          <details className="ready-details">
+            <summary>Está num computador compartilhado?</summary>
+            <p>{SHARED_DEVICE_WARNING}</p>
+          </details>
+        </div>
       </div>
     </section>
   );

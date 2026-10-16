@@ -37,3 +37,10 @@ export function decideDownload(status: string, downloadUrl: string | null, image
 
   return url ? { kind: "ok", url } : { kind: "unavailable" };
 }
+
+// O link assinado vale DOWNLOAD_URL_SECONDS (5 min): com mais de 4 min, busca outro antes de baixar.
+export const DOWNLOAD_URL_FRESH_MS = 4 * 60 * 1000;
+
+export function isDownloadStale(fetchedAt: number, now: number): boolean {
+  return !(now - fetchedAt >= 0 && now - fetchedAt < DOWNLOAD_URL_FRESH_MS);
+}
