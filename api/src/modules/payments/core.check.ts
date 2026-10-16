@@ -44,11 +44,11 @@ function charge(status: string) {
 function payment(overrides: Record<string, unknown> = {}) {
   return {
     id: 7,
-    provider: "woovi",
+    provider: "asaas",
     method: "pix",
     status: "pending",
     amountCents: 399,
-    paymentUrl: "https://woovi.example/pay/abc",
+    paymentUrl: "https://provedor.example/pay/abc",
     pixCopyPaste: BR_CODE,
     pixQrCodeImage: "https://terceiro.example/qr.png",
     boletoUrl: null,

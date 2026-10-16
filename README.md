@@ -1,7 +1,7 @@
 # Moldura Eleitoral
 
 Monorepo pnpm: `common` (schemas e candidatos), `api` (Fastify + Postgres + MinIO + sharp), `web` (Next.js).
-O cliente vê a prévia grátis (com marca d'água), paga R$ 2,99 por Pix (pelo Core, que gera o Pix na Woovi) e baixa o PNG sem marca d'água, montado no servidor depois do pagamento.
+O cliente vê a prévia grátis (com marca d'água), paga R$ 2,99 por Pix (pelo Core) e baixa o PNG sem marca d'água, montado no servidor depois do pagamento.
 
 ## Rodar local
 
@@ -62,9 +62,9 @@ O que isso NÃO impede: print pelo botão do celular, gravadores de tela, ferram
 
 ## Privacidade e termos (web)
 
-- `/privacidade` e `/termos` (links no rodapé) descrevem o que o site realmente faz: foto enviada só ao clicar em "Baixar foto pronta", prazos de exclusão, Pix pelo Core/Woovi sem pedir nome/CPF, IP não guardado (só em memória para limitar abusos), lista "Minhas molduras" no localStorage, sem cookies, análise, anúncios ou rastreadores. **Os textos são um rascunho inicial e precisam ser revisados pelo advogado do operador antes do lançamento.** Se a api mudar prazos ou dados guardados, atualize as duas páginas.
+- `/privacidade` e `/termos` (links no rodapé) descrevem o que o site realmente faz: foto enviada só ao clicar em "Baixar foto pronta", prazos de exclusão, Pix pelo Core sem pedir nome/CPF, IP não guardado (só em memória para limitar abusos), lista "Minhas molduras" no localStorage, sem cookies, análise, anúncios ou rastreadores. **Os textos são um rascunho inicial e precisam ser revisados pelo advogado do operador antes do lançamento.** Se a api mudar prazos ou dados guardados, atualize as duas páginas.
 - Variáveis do web (lidas no build; veja `web/.env.example`, que traz os valores de produção aprovados): `NEXT_PUBLIC_OPERATOR_NAME` (razão social), `NEXT_PUBLIC_OPERATOR_DOC` (CNPJ) e `NEXT_PUBLIC_CONTACT_EMAIL` (e-mail para LGPD e problemas com pagamento). A identificação aparece no rodapé de todas as páginas e no bloco de operador de `/privacidade` e `/termos`. Sem nome e e-mail, o rodapé e as páginas omitem o bloco e o build mostra um aviso. Endereço físico ainda não é exibido (decisão pendente do dono).
-- `/privacidade` informa o armazenamento na Cloudflare R2 (transferência internacional, LGPD art. 33), os operadores (Cloudflare, Woovi, hospedagem), o registro financeiro da venda no nosso sistema financeiro (Core) e o consentimento.
+- `/privacidade` informa o armazenamento na Cloudflare R2 (transferência internacional, LGPD art. 33), os operadores (Cloudflare, instituição de pagamento, hospedagem), o registro financeiro da venda no nosso sistema financeiro (Core) e o consentimento.
 - Cabeçalhos do web: CSP, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY`, `nosniff`, `Permissions-Policy`, sem `X-Powered-By`; `Strict-Transport-Security` só em produção.
 - `pnpm test` também roda os testes dos helpers do web (`web/src/lib/*.check.ts`, via `tsx --test`).
 
@@ -74,7 +74,7 @@ O texto das molduras usa a Montserrat ExtraBold (subconjunto latin, `api/assets/
 
 ## Pix pelo Core
 
-A api não fala com nenhum provedor de pagamento: ela usa o `@felipepasc/core-sdk` (npm público) e o Core (`https://felipepasc.com`) gera o Pix no provedor configurado no CNPJ do serviço (hoje a Woovi). Nada de nota fiscal: só cobrança e Pix.
+A api não fala com nenhum provedor de pagamento: ela usa o `@felipepasc/core-sdk` (npm público) e o Core (`https://felipepasc.com`) gera o Pix no provedor configurado no CNPJ do serviço. Nada de nota fiscal: só cobrança e Pix.
 
 - Pedido novo: `charges.upsert(<referência>)` com um cliente genérico ("Cliente Moldura Eleitoral"), um item "Moldura Eleitoral" de R$ 2,99 (`PRICE_CENTS`) e vencimento no dia (Brasília), depois `charges.createPayment(<referência>, { method: "pix" })`. A referência é aleatória (32 hex), nunca o id do pedido (a credencial do download); o Core nunca recebe foto, candidato nem dado do comprador. O QR é gerado na api a partir do copia e cola (sem a imagem do provedor). Pix com outro valor ou sem copia e cola é recusado.
 - Consulta: `charges.get(<referência>)`. Só `paid` libera; `canceled` expira; o resto (inclusive estorno, que volta para `open`) é pendente.
@@ -83,7 +83,7 @@ A api não fala com nenhum provedor de pagamento: ela usa o `@felipepasc/core-sd
 - Variáveis: `CORE_API_KEY` (`fk_...`, do serviço "Moldura Eleitoral" no Core, aba Integração; só aparece na criação), `CORE_WEBHOOK_SECRET` (`whsec_...`), `CORE_API_URL` (`https://felipepasc.com`). As duas primeiras são obrigatórias: sem elas a api não sobe.
 - Cadastrar o aviso (uma vez por ambiente): `CORE_API_KEY=fk_... pnpm --filter @moldura/api core:webhook https://api.molduraeleitoral.com`. O segredo sai uma vez, numa linha `CORE_WEBHOOK_SECRET=...`: ponha direto no ambiente da api.
 - Na subida a api chama `ping` e loga o nome do serviço do Core (confira que é o da Moldura, não outro). O `.npmrc` da raiz força o `@felipepasc` no npm público (ignora um `~/.npmrc` antigo do GitHub Packages).
-- Taxas e saque seguem o contrato da Woovi da empresa no Core; pergunte ao suporte se o uso eleitoral é permitido e guarde a resposta.
+- Taxas e saque seguem o contrato do provedor da empresa no Core; pergunte ao suporte se o uso eleitoral é permitido e guarde a resposta.
 
 ## API
 
@@ -112,7 +112,7 @@ A regra de ciclo de vida do MinIO (`photos/` 4 dias, `results/` 8 dias) é só u
 
 0. Mesmo roteiro para "Pedido não pago apagado pelo teto sem confirmação": procure a cobrança pelo `pixId` (é o externalId dela) no Core; se estiver paga, reembolse.
 1. Procure no log da api a mensagem "Pedido pago sem imagem" (quando a montagem falha) ou "Pedido pago sem imagem apagado" (quando a limpeza remove o pedido). Os dois eventos trazem `orderRef` (hash curto, serve só para achar o pedido nos logs) e `pixId` (o id da cobrança). São (com o aviso de teto sem confirmação) os únicos logs que contêm o `pixId`.
-2. No Core (`/dashboard/faturamento/cobrancas`), localize a cobrança por esse `pixId`, faça o reembolso no painel da Woovi e reabra/cancele a cobrança no Core.
+2. No Core (`/dashboard/faturamento/cobrancas`), localize a cobrança por esse `pixId`, faça o reembolso no painel do provedor e reabra/cancele a cobrança no Core.
 3. O pedido não precisa de mais nada: a limpeza apaga a linha sozinha (3 a 5 dias).
 
 ## Minhas molduras

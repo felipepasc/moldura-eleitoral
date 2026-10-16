@@ -57,9 +57,9 @@ export default function PrivacyPage() {
             </dd>
             <dt>Dados do pagamento por Pix</dt>
             <dd>
-              A cobrança é registrada no nosso sistema financeiro, que gera o Pix pela Woovi, a instituição que processa o pagamento. Esse registro tem só o valor, a
+              A cobrança é registrada no nosso sistema financeiro, que gera o Pix por uma instituição de pagamento autorizada. Esse registro tem só o valor, a
               data, o status e um identificador aleatório da cobrança: nunca a sua foto nem o candidato escolhido. Nós não pedimos nem guardamos seu nome ou CPF; quem
-              paga é identificado pelo banco e pela Woovi, como em qualquer Pix.
+              paga é identificado pelo banco e pela instituição de pagamento, como em qualquer Pix.
             </dd>
             <dt>Endereço IP</dt>
             <dd>
@@ -111,7 +111,7 @@ export default function PrivacyPage() {
           <h2 id="operadores">Quem mais trata os dados</h2>
           <ul>
             <li>Cloudflare: armazenamento da sua foto e da foto pronta (Cloudflare R2) e entrega do site (DNS e proxy).</li>
-            <li>Woovi: gera e processa o Pix.</li>
+            <li>Instituição de pagamento: gera e processa o Pix.</li>
             <li>Provedor de hospedagem: onde rodam o site e o servidor.</li>
           </ul>
         </section>

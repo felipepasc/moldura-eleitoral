@@ -30,7 +30,7 @@ export default function TermsPage() {
         <section aria-labelledby="pagamento">
           <h2 id="pagamento">Pagamento e entrega</h2>
           <ul>
-            <li>O pagamento é por Pix, processado pela Woovi. O Pix gerado vale por tempo limitado.</li>
+            <li>O pagamento é por Pix, processado por uma instituição de pagamento autorizada. O Pix gerado vale por tempo limitado.</li>
             <li>Depois que o pagamento é confirmado, a foto pronta é montada e fica disponível para baixar por até 7 dias, pela página do pedido.</li>
             <li>Se você pagou e não recebeu a imagem, fale com a gente {contact}, informando o horário do pagamento.</li>
           </ul>
