@@ -28,11 +28,11 @@ const FRAME_HOLES: Record<string, readonly FrameHole[]> = {
     { cx: 0.498, cy: 0.408, r: 0.431 },
   ],
   "flavio-bolsonaro": [
+    { cx: 0.5, cy: 0.412, r: 0.377 },
     { cx: 0.5, cy: 0.394, r: 0.388 },
     { cx: 0.502, cy: 0.381, r: 0.395 },
     { cx: 0.5, cy: 0.373, r: 0.385 },
     { cx: 0.5, cy: 0.396, r: 0.375 },
-    { cx: 0.5, cy: 0.412, r: 0.377 },
   ],
 };
 

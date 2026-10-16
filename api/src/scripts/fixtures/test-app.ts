@@ -1,4 +1,4 @@
-import { generateKeyPairSync, sign } from "node:crypto";
+import { createHmac, randomBytes } from "node:crypto";
 import path from "node:path";
 import type { DestinationStream } from "pino";
 import { buildApp } from "@/app";
@@ -11,16 +11,16 @@ import { webhookEvents } from "@/modules/payments/schema";
 import { createFakeGateway } from "@/scripts/fixtures/fake-gateway";
 import { createMemoryStorage } from "@/scripts/fixtures/memory-storage";
 
-export const WEBHOOK_SECRET = "test-webhook-secret-123456";
+export const CORE_WEBHOOK_SECRET = `whsec_${randomBytes(24).toString("base64")}`;
 
-const WOOVI_KEYS = generateKeyPairSync("rsa", { modulusLength: 2048 });
-const OTHER_KEYS = generateKeyPairSync("rsa", { modulusLength: 2048 });
+// Cabeçalhos de um aviso do Core (Standard Webhooks: HMAC-SHA256 de "<id>.<timestamp>.<corpo>").
+export function signCore(raw: string, options: { id?: string; timestamp?: number; secret?: string } = {}): Record<string, string> {
+  const id = options.id ?? `evt_${randomBytes(8).toString("hex")}`;
+  const timestamp = String(options.timestamp ?? Math.floor(Date.now() / 1000));
+  const key = Buffer.from((options.secret ?? CORE_WEBHOOK_SECRET).replace(/^whsec_/, ""), "base64");
+  const signature = createHmac("sha256", key).update(`${id}.${timestamp}.${raw}`).digest("base64");
 
-export const WOOVI_TEST_PUBLIC_KEY = WOOVI_KEYS.publicKey.export({ type: "spki", format: "pem" }).toString();
-
-// Assina o corpo cru como a Woovi faz (RSA + SHA-256, base64). Com `forged`, assina com outra chave.
-export function signWoovi(raw: string | Buffer, forged = false): string {
-  return sign("sha256", Buffer.from(raw), (forged ? OTHER_KEYS : WOOVI_KEYS).privateKey).toString("base64");
+  return { "webhook-id": id, "webhook-timestamp": timestamp, "webhook-signature": `v1,${signature}` };
 }
 
 export type TestAppOptions = {
@@ -56,8 +56,7 @@ export async function createTestApp(options: TestAppOptions = {}) {
 
   const app = await buildApp({
     ctx,
-    webhookSecret: WEBHOOK_SECRET,
-    wooviPublicKey: WOOVI_TEST_PUBLIC_KEY,
+    coreWebhookSecret: CORE_WEBHOOK_SECRET,
     webOrigin: options.webOrigin ?? "http://localhost:6610",
     trustProxy: options.trustProxy ?? 0,
     salesEnabled: options.salesEnabled ?? true,

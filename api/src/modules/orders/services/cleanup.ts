@@ -50,7 +50,7 @@ type DeletePolicy = {
   deletedMessage: string | null;
 };
 
-// Confirma na AbacatePay antes de apagar; se a consulta falhar, só o teto máximo de retenção apaga mesmo assim.
+// Confirma no Core antes de apagar; se a consulta falhar, só o teto máximo de retenção apaga mesmo assim.
 async function deleteUnconfirmed(ctx: OrderContext, row: OrderRow, policy: DeletePolicy): Promise<boolean> {
   const beyondHardCap = row.createdAt < policy.hardBefore;
   let unconfirmed = false;
@@ -66,7 +66,7 @@ async function deleteUnconfirmed(ctx: OrderContext, row: OrderRow, policy: Delet
       await ctx.gateway.checkPix(current.pixId);
     }
   } catch (error) {
-    ctx.logger.warn({ err: error, orderRef: orderRef(row.id) }, "Não consegui consultar a AbacatePay na limpeza");
+    ctx.logger.warn({ err: error, orderRef: orderRef(row.id) }, "Não consegui consultar o Core na limpeza");
 
     if (!beyondHardCap) {
       return false;
@@ -84,12 +84,12 @@ async function deleteUnconfirmed(ctx: OrderContext, row: OrderRow, policy: Delet
   forgetOrder(ctx, row.id);
 
   if (unconfirmed && !policy.deletedMessage) {
-    // Pode ter pago sem a api saber: o pixId deixa o operador conferir no painel da AbacatePay (evento com pixId, junto com os de pago sem imagem).
+    // Pode ter pago sem a api saber: o pixId deixa o operador conferir no painel do Core (evento com pixId, junto com os de pago sem imagem).
     ctx.logger.warn({ orderRef: orderRef(row.id), pixId: row.pixId }, "Pedido não pago apagado pelo teto sem confirmação");
   }
 
   if (policy.deletedMessage) {
-    // Segundo e último log com pixId: o operador precisa dele para reembolsar na AbacatePay.
+    // Segundo e último log com pixId: o operador acha a cobrança no Core por ele e reembolsa no provedor.
     ctx.logger.warn({ orderRef: orderRef(row.id), pixId: row.pixId }, policy.deletedMessage);
   }
 

@@ -19,6 +19,9 @@ importers:
       '@fastify/rate-limit':
         specifier: ^11.2.0
         version: 11.2.0
+      '@felipepasc/core-sdk':
+        specifier: 0.2.2
+        version: 0.2.2
       '@moldura/common':
         specifier: workspace:*
         version: link:../common
@@ -608,6 +611,10 @@ packages:
 
   '@fastify/rate-limit@11.2.0':
     resolution: {integrity: sha512-X7osJd4XSvMoejYrnJkSZYYjY1eNYoBqhjlzf1RakC2204qExFqZFTKj5+T7VuzA/iUI9Z3UoSqQRkB2HpG0oQ==}
+
+  '@felipepasc/core-sdk@0.2.2':
+    resolution: {integrity: sha512-ZF+FL5uc63cBrwxIngf3nlB8teQaJTxqu4dps4qJCQLHAGOKZv7uGOH15YEq+L4kol0ma0+kQjXZq9PqnKSIvA==}
+    engines: {node: '>=20'}
 
   '@img/colour@1.1.0':
     resolution: {integrity: sha512-Td76q7j57o/tLVdgS746cYARfSyxk8iEfRxewL9h4OMzYhbW4TAcppl0mT4eyqXddh6L/jwoM75mo7ixa/pCeQ==}
@@ -1884,6 +1891,8 @@ snapshots:
       fastify-plugin: 6.0.0
       ip-address: 10.7.3
       toad-cache: 3.7.4
+
+  '@felipepasc/core-sdk@0.2.2': {}
 
   '@img/colour@1.1.0': {}
 

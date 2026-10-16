@@ -3,7 +3,7 @@ import { findCandidate } from "./candidates";
 import { DEFAULT_FRAME_STYLE, FRAME_STYLE_IDS } from "./frame-styles";
 import { MAX_ZOOM } from "./framing";
 
-export const PRICE_CENTS = 399;
+export const PRICE_CENTS = 299;
 export const PIX_EXPIRES_SECONDS = 1800;
 export const DOWNLOAD_URL_SECONDS = 300;
 export const PHOTO_MAX_BYTES = 8 * 1024 * 1024;

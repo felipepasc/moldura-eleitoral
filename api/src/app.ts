@@ -11,8 +11,7 @@ import { badReq, notFound, serverErr, tooLarge } from "@/core/http-fastify";
 import type { OrderContext } from "@/modules/orders/context";
 import { publicRouter } from "@/modules/public/public.router";
 import { ordersRouter } from "@/modules/orders/routes/orders.router";
-import { wooviWebhookRouter } from "@/modules/payments/woovi-webhook.router";
-import { webhookRouter } from "@/modules/payments/webhook.router";
+import { coreWebhookRouter } from "@/modules/payments/core-webhook.router";
 
 const DEFAULT_ORDER_READS_PER_MINUTE = 300;
 const DEFAULT_WEBHOOK_PER_MINUTE = 120;
@@ -28,8 +27,7 @@ export function parseOrigins(value: string): string[] {
 
 export type AppDeps = {
   ctx: OrderContext;
-  webhookSecret?: string;
-  wooviPublicKey?: string;
+  coreWebhookSecret: string;
   webOrigin: string;
   trustProxy: number;
   salesEnabled: boolean;
@@ -95,13 +93,7 @@ export async function buildApp(deps: AppDeps) {
   await app.register(ordersRouter(deps.ctx, deps.ordersPerMinute, deps.orderReadsPerMinute ?? DEFAULT_ORDER_READS_PER_MINUTE, salesOpen), { prefix: "/orders" });
   const webhookPerMinute = deps.webhookPerMinute ?? DEFAULT_WEBHOOK_PER_MINUTE;
 
-  if (deps.webhookSecret) {
-    await app.register(webhookRouter(deps.ctx, deps.webhookSecret, webhookPerMinute), { prefix: "/webhooks" });
-  }
-
-  if (deps.wooviPublicKey) {
-    await app.register(wooviWebhookRouter(deps.ctx, deps.wooviPublicKey, webhookPerMinute), { prefix: "/webhooks" });
-  }
+  await app.register(coreWebhookRouter(deps.ctx, deps.coreWebhookSecret, webhookPerMinute), { prefix: "/webhooks" });
 
   return app;
 }

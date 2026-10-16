@@ -42,7 +42,7 @@ async function insertOrder(values: Partial<typeof orders.$inferInsert> & { pixId
   return row;
 }
 
-test("duas consultas seguidas ao mesmo pedido fazem uma só chamada à AbacatePay", async () => {
+test("duas consultas seguidas ao mesmo pedido fazem uma só chamada ao Core", async () => {
   const row = await insertOrder({ pixId: "t1" });
 
   await refreshOrder(t.ctx, row.id);

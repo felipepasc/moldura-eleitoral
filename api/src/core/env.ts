@@ -21,8 +21,7 @@ const ProxyHops = z.preprocess(
   z.coerce.number().int().min(0).max(10),
 );
 
-const EnvSchema = z
-  .object({
+const EnvSchema = z.object({
     PORT: z.coerce.number().default(6600),
     DATABASE_URL: z.string().min(1),
     WEB_ORIGIN: z.string().default("http://localhost:6610"),
@@ -38,22 +37,10 @@ const EnvSchema = z
     MINIO_ACCESS_KEY: z.string().min(1),
     MINIO_SECRET_KEY: z.string().min(1),
     MINIO_BUCKET: z.string().default("moldura"),
-    PIX_GATEWAY: z.enum(["woovi", "abacatepay"]).default("woovi"),
-    WOOVI_APP_ID: z.string().min(1).optional(),
-    WOOVI_BASE_URL: z.string().default("https://api.woovi.com"),
-    WOOVI_WEBHOOK_PUBLIC_KEY: z.string().min(1).optional(),
-    ABACATEPAY_API_KEY: z.string().min(1).optional(),
-    ABACATEPAY_BASE_URL: z.string().default("https://api.abacatepay.com/v2"),
-    ABACATEPAY_WEBHOOK_SECRET: z.string().min(16).optional(),
-  })
-  .superRefine((value, context) => {
-    const required = value.PIX_GATEWAY === "woovi" ? (["WOOVI_APP_ID"] as const) : (["ABACATEPAY_API_KEY", "ABACATEPAY_WEBHOOK_SECRET"] as const);
-
-    for (const key of required) {
-      if (!value[key]) {
-        context.addIssue({ code: "custom", path: [key], message: `${key} é obrigatória com PIX_GATEWAY=${value.PIX_GATEWAY}` });
-      }
-    }
+    // Pix pelo Core (felipepasc.com): a chave fk_ do serviço e o segredo whsec_ do endereço de aviso.
+    CORE_API_URL: z.string().url().default("https://felipepasc.com"),
+    CORE_API_KEY: z.string().startsWith("fk_"),
+    CORE_WEBHOOK_SECRET: z.string().startsWith("whsec_"),
   });
 
 export function parseEnv(source: Record<string, string | undefined>) {

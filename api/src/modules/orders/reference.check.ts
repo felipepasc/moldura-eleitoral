@@ -5,7 +5,8 @@ import { eq } from "drizzle-orm";
 import sharp from "sharp";
 import { orders } from "@/modules/orders/schema";
 import { cleanupOrders } from "@/modules/orders/services/cleanup";
-import { createWooviGateway } from "@/modules/payments/woovi";
+import { createClient } from "@felipepasc/core-sdk";
+import { createCoreGateway } from "@/modules/payments/core";
 import { createTestApp } from "@/scripts/fixtures/test-app";
 import type { TestApp } from "@/scripts/fixtures/test-app";
 
@@ -59,30 +60,30 @@ test("a referência enviada ao gateway é separada do id do pedido", async () =>
   assert.ok(t.gateway.inputs[0].reference.length >= 32);
 });
 
-test("o corpo enviado à Woovi não contém o id do pedido e o pixId guardado é a referência", async () => {
+test("nada enviado ao Core contém o id do pedido e o pixId guardado é o externalId da cobrança", async () => {
   const bodies: string[] = [];
   const urls: string[] = [];
   const fetchFn: typeof fetch = async (input, init) => {
     urls.push(String(input));
     bodies.push(typeof init?.body === "string" ? init.body : "");
-    const sent = JSON.parse(bodies[bodies.length - 1]) as { correlationID: string; value: number };
 
-    return new Response(
-      JSON.stringify({ charge: { correlationID: sent.correlationID, status: "ACTIVE", brCode: "000201FAKE", expiresDate: new Date(Date.now() + 600_000).toISOString() } }),
-      { status: 200 },
-    );
+    if (String(input).endsWith("/payments")) {
+      return new Response(JSON.stringify({ status: "pending", amountCents: 299, pixCopyPaste: "000201FAKE", expiresAt: new Date(Date.now() + 600_000).toISOString() }), { status: 201 });
+    }
+
+    return new Response(JSON.stringify({ status: "open" }), { status: 201 });
   };
-  t.ctx.gateway = createWooviGateway({ appId: "app", baseUrl: "https://woovi.test", fetchFn });
+  t.ctx.gateway = createCoreGateway({ client: createClient({ baseUrl: "https://core.test", apiKey: "fk_teste", fetch: fetchFn, retries: 0 }) });
 
   const res = await postOrder();
   const id = res.json().id as string;
   const [row] = await t.db.select().from(orders).where(eq(orders.id, id));
 
   assert.equal(res.statusCode, 201);
-  assert.equal(bodies.length, 1);
-  assert.ok(!bodies[0].includes(id));
-  assert.ok(!urls[0].includes(id));
-  assert.equal(row.pixId, (JSON.parse(bodies[0]) as { correlationID: string }).correlationID);
+  assert.equal(urls.length, 2);
+  assert.ok(bodies.every((body) => !body.includes(id)));
+  assert.ok(urls.every((url) => !url.includes(id)));
+  assert.equal(urls[0], `https://core.test/v1/charges/${row.pixId}`);
   assert.notEqual(row.pixId, id);
 });
 

@@ -55,7 +55,7 @@ async function postOrder(fields: Record<string, string>, file?: { data: Buffer; 
   return t.app.inject({ method: "POST", url: "/orders", ...body });
 }
 
-test("POST /orders cria pedido pending com Pix de 399 centavos e guarda a foto", async () => {
+test("POST /orders cria pedido pending com Pix de 299 centavos e guarda a foto", async () => {
   const res = await postOrder({ candidateId: "lula", framing: FRAMING }, { data: await photo(), type: "image/jpeg" });
   const body = res.json();
 
@@ -64,7 +64,7 @@ test("POST /orders cria pedido pending com Pix de 399 centavos e guarda a foto",
   assert.equal(body.candidateId, "lula");
   assert.ok(body.pix.brCode.startsWith("000201-"));
   assert.equal(body.downloadUrl, null);
-  assert.equal(t.gateway.inputs[0].amountCents, 399);
+  assert.equal(t.gateway.inputs[0].amountCents, 299);
   assert.equal(t.gateway.inputs[0].expiresInSeconds, 1800);
   assert.equal(t.storage.files.size, 1);
   assert.ok([...t.storage.files.keys()][0].startsWith("photos/"));
@@ -103,7 +103,7 @@ test("POST /orders com foto acima de 8 MB devolve 413 e não grava nada", async 
   assert.equal(t.storage.files.size, 0);
 });
 
-test("POST /orders com a AbacatePay fora do ar devolve 502 e não deixa foto órfã", async () => {
+test("POST /orders com o Core fora do ar devolve 502 e não deixa foto órfã", async () => {
   t.gateway.failCreate = true;
 
   const res = await postOrder({ candidateId: "lula", framing: FRAMING }, { data: await photo(), type: "image/jpeg" });
@@ -120,7 +120,7 @@ test("GET /orders/:id com id desconhecido ou que não é uuid devolve 404", asyn
   assert.equal(notUuid.statusCode, 404);
 });
 
-test("GET /orders/:id pendente mostra o Pix; quando a AbacatePay diz PAID monta a imagem e libera o download", async () => {
+test("GET /orders/:id pendente mostra o Pix; quando o Core diz PAID monta a imagem e libera o download", async () => {
   const created = (await postOrder({ candidateId: "flavio-bolsonaro", framing: FRAMING }, { data: await photo(), type: "image/jpeg" })).json();
 
   const pending = (await t.app.inject({ method: "GET", url: `/orders/${created.id}` })).json();
@@ -144,7 +144,7 @@ test("GET /orders/:id pendente mostra o Pix; quando a AbacatePay diz PAID monta 
   assert.equal([...t.storage.files.keys()].some((key) => key.startsWith("photos/")), false, "foto original deve ser apagada");
 });
 
-test("GET /orders/:id marca expired quando a AbacatePay diz EXPIRED ou quando passou do prazo local", async () => {
+test("GET /orders/:id marca expired quando o Core diz EXPIRED ou quando passou do prazo local", async () => {
   const a = (await postOrder({ candidateId: "lula", framing: FRAMING }, { data: await photo(), type: "image/jpeg" })).json();
   t.gateway.statuses.set(t.gateway.created[0], "EXPIRED");
   assert.equal((await t.app.inject({ method: "GET", url: `/orders/${a.id}` })).json().status, "expired");
@@ -159,7 +159,7 @@ test("GET /orders/:id marca expired quando a AbacatePay diz EXPIRED ou quando pa
   }
 });
 
-test("GET /orders/:id com a AbacatePay fora do ar devolve o estado local", async () => {
+test("GET /orders/:id com o Core fora do ar devolve o estado local", async () => {
   const created = (await postOrder({ candidateId: "lula", framing: FRAMING }, { data: await photo(), type: "image/jpeg" })).json();
   t.gateway.failCheck = true;
 
@@ -274,7 +274,7 @@ test("falha ao gravar o pedido depois do Pix não deixa foto órfã e não vaza 
   }
 });
 
-test("POST /orders com falha da AbacatePay e do storage.remove ainda devolve 502", async () => {
+test("POST /orders com falha do Core e do storage.remove ainda devolve 502", async () => {
   t.gateway.failCreate = true;
   t.storage.remove = async () => {
     throw new Error("storage fora do ar");
@@ -285,7 +285,7 @@ test("POST /orders com falha da AbacatePay e do storage.remove ainda devolve 502
   assert.equal(res.statusCode, 502);
 });
 
-test("pago na AbacatePay vence a expiração local", async () => {
+test("pago no Core vence a expiração local", async () => {
   const later = await createTestApp({ now: () => new Date(Date.now() + 3600_000) });
 
   try {
@@ -327,7 +327,7 @@ test("paid_failed não é rebaixado para expired por consulta que não vê PAID"
   }
 });
 
-test("paid_failed é remontado mesmo com a AbacatePay fora do ar", async () => {
+test("paid_failed é remontado mesmo com o Core fora do ar", async () => {
   t.ctx.framesDir = "C:/pasta/que/nao/existe";
   const created = (await postOrder({ candidateId: "lula", framing: FRAMING }, { data: await photo(), type: "image/jpeg" })).json();
   t.gateway.statuses.set(t.gateway.created[0], "PAID");

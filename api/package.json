@@ -12,6 +12,7 @@
     "frames:placeholder": "tsx src/scripts/make-placeholder-frames.ts",
     "frames:build": "tsx src/scripts/make-placeholder-frames.ts",
     "frames:import": "tsx src/scripts/import-frame.ts",
+    "core:webhook": "tsx --env-file-if-exists=.env src/scripts/setup-core-webhook.ts",
     "frames:sheet": "tsx src/scripts/make-styles-sheet.ts",
     "test": "tsx --env-file=.env.test src/scripts/setup-db.ts && tsx --env-file=.env.test --test --test-concurrency=1 \"src/**/*.check.ts\""
   },
@@ -19,6 +20,7 @@
     "@fastify/cors": "^11.3.0",
     "@fastify/multipart": "^10.1.2",
     "@fastify/rate-limit": "^11.2.0",
+    "@felipepasc/core-sdk": "0.2.2",
     "@moldura/common": "workspace:*",
     "drizzle-orm": "^0.45.3",
     "fastify": "^5.12.5",

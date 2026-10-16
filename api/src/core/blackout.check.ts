@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { DEFAULT_SALES_BLACKOUT, isInBlackout, parseBlackout } from "@/core/blackout";
 import { parseEnv } from "@/core/env";
 
-const BASE = { DATABASE_URL: "x", MINIO_ACCESS_KEY: "a", MINIO_SECRET_KEY: "b", WOOVI_APP_ID: "app" };
+const BASE = { DATABASE_URL: "x", MINIO_ACCESS_KEY: "a", MINIO_SECRET_KEY: "b", CORE_API_KEY: "fk_abc", CORE_WEBHOOK_SECRET: "whsec_x" };
 const at = (iso: string) => new Date(iso);
 
 test("o padrão cobre o dia da eleição do 2º turno em -03:00, início inclusivo e fim exclusivo", () => {

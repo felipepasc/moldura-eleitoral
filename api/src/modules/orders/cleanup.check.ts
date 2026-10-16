@@ -167,7 +167,7 @@ test("pedido pago com paidAt nulo e createdAt antigo também é apagado", async 
   assert.equal(await exists(paid.id), false);
 });
 
-test("pedido não pago que a AbacatePay diz estar PAGO na limpeza não é apagado e vira paid", async () => {
+test("pedido não pago que o Core diz estar PAGO na limpeza não é apagado e vira paid", async () => {
   const photo = await sharp({ create: { width: 300, height: 300, channels: 3, background: { r: 10, g: 200, b: 10 } } })
     .jpeg()
     .toBuffer();
@@ -255,7 +255,7 @@ test("a limpeza não loga chaves de arquivo nem ids de pedido, nem quando a remo
   assert.ok(!/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/.test(logs));
 });
 
-test("teto de retenção: com a AbacatePay fora do ar, não pago >3 dias e paid_failed >5 dias somem; o resto fica", async () => {
+test("teto de retenção: com o Core fora do ar, não pago >3 dias e paid_failed >5 dias somem; o resto fica", async () => {
   t.gateway.failCheck = true;
   await t.storage.put("photos/u25.jpg", Buffer.from("x"), "image/jpeg");
   const recent = await insertOrder({ pixId: "h1", photoKey: "photos/u25.jpg", createdAt: new Date(clock - 25 * HOUR) });
@@ -348,7 +348,7 @@ test("teto de retenção de pedido não pago loga pixId e orderRef (pode ter pag
   assert.ok(!logs.includes(old.id));
 });
 
-test("apagamento de pedido não pago com a AbacatePay respondendo não loga pixId", async () => {
+test("apagamento de pedido não pago com o Core respondendo não loga pixId", async () => {
   await insertOrder({ pixId: "pix_ok_1", createdAt: new Date(clock - 4 * DAY) });
 
   await cleanupOrders(t.ctx);

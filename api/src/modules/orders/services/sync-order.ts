@@ -142,7 +142,7 @@ export async function confirmOrder(ctx: OrderContext, row: OrderRow): Promise<Or
     const failed = await updateOrder(ctx, row.id, { status: "paid_failed" }, ne(orders.status, "paid"));
 
     if (row.status !== "paid_failed") {
-      // O operador precisa do id da cobrança para reembolsar na AbacatePay: este é um dos dois únicos logs com pixId.
+      // O operador acha a cobrança no Core pelo id e reembolsa no provedor: este é um dos dois únicos logs com pixId.
       ctx.logger.error({ orderRef: orderRef(row.id), pixId: row.pixId }, "Pedido pago sem imagem");
     }
 
@@ -212,7 +212,7 @@ export async function refreshOrder(ctx: OrderContext, id: string): Promise<Order
   try {
     return await syncOrder(ctx, id);
   } catch (error) {
-    ctx.logger.warn({ err: error, orderRef: orderRef(id) }, "Não consegui consultar a AbacatePay; usando o estado local");
+    ctx.logger.warn({ err: error, orderRef: orderRef(id) }, "Não consegui consultar o Core; usando o estado local");
 
     return findOrder(ctx, id);
   }

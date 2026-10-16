@@ -12,7 +12,8 @@ const RETENTION: { item: string; how: string }[] = [
   { item: "Registro do pedido pago", how: "Até 7 dias depois do pagamento." },
   { item: "Registro do pedido pago em que a foto não pôde ser montada", how: "Até 5 dias." },
   { item: "Registro do pedido não pago ou expirado", how: "Até 3 dias (normalmente apagado 24 h depois do pedido)." },
-  { item: "Avisos de pagamento recebidos da Woovi", how: "Até 30 dias." },
+  { item: "Avisos de pagamento recebidos do nosso sistema financeiro", how: "Até 30 dias." },
+  { item: "Registro financeiro da venda (valor, data e identificador da cobrança)", how: "Pelo prazo exigido pela legislação fiscal e contábil." },
   { item: "Registros técnicos (logs) do site e da hospedagem", how: "Por período limitado, definido pelo operador." },
   { item: "Lista “Minhas molduras” (no seu navegador)", how: "Até 7 dias (cada item some sozinho; você pode apagar antes)." },
 ];
@@ -56,8 +57,9 @@ export default function PrivacyPage() {
             </dd>
             <dt>Dados do pagamento por Pix</dt>
             <dd>
-              A cobrança Pix é criada e processada pela Woovi. Guardamos só o necessário para conferir o pagamento (identificador e código da cobrança e o status).
-              Nós não pedimos nem guardamos seu nome ou CPF; quem paga é identificado pelo banco e pela Woovi, como em qualquer Pix.
+              A cobrança é registrada no nosso sistema financeiro, que gera o Pix pela Woovi, a instituição que processa o pagamento. Esse registro tem só o valor, a
+              data, o status e um identificador aleatório da cobrança: nunca a sua foto nem o candidato escolhido. Nós não pedimos nem guardamos seu nome ou CPF; quem
+              paga é identificado pelo banco e pela Woovi, como em qualquer Pix.
             </dd>
             <dt>Endereço IP</dt>
             <dd>
@@ -68,7 +70,7 @@ export default function PrivacyPage() {
             <dt>Registros técnicos da aplicação</dt>
             <dd>
               Os logs da aplicação guardam só uma referência interna ao pedido (não o número do pedido) e, em casos raros de falha envolvendo pagamento, o identificador
-              da cobrança na Woovi, para que um reembolso possa ser rastreado. Eles ficam guardados por período limitado e definido pelo operador.
+              da cobrança, para que um reembolso possa ser rastreado. Eles ficam guardados por período limitado e definido pelo operador.
             </dd>
             <dt>Lista “Minhas molduras” (no seu navegador)</dt>
             <dd>
@@ -109,7 +111,7 @@ export default function PrivacyPage() {
           <h2 id="operadores">Quem mais trata os dados</h2>
           <ul>
             <li>Cloudflare: armazenamento da sua foto e da foto pronta (Cloudflare R2) e entrega do site (DNS e proxy).</li>
-            <li>Woovi: cria e processa a cobrança Pix.</li>
+            <li>Woovi: gera e processa o Pix.</li>
             <li>Provedor de hospedagem: onde rodam o site e o servidor.</li>
           </ul>
         </section>

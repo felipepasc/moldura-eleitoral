@@ -49,7 +49,7 @@ test("erro comum mantém a mensagem mas troca chaves do storage por [chave]", ()
 
 test("sanitizeUrl tira a query e troca uuid por :id", () => {
   assert.equal(sanitizeUrl("/orders/3f2b8c1e-5a4d-4c3b-9e8f-1a2b3c4d5e6f?x=1"), "/orders/:id");
-  assert.equal(sanitizeUrl("/webhooks/abacatepay?webhookSecret=abc"), "/webhooks/abacatepay");
+  assert.equal(sanitizeUrl("/webhooks/core?webhookSecret=abc"), "/webhooks/core");
 });
 
 test("orderRef é curto, estável e não revela o id", () => {

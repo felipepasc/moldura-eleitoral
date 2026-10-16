@@ -3,24 +3,22 @@ import assert from "node:assert/strict";
 import { parseEnv } from "@/core/env";
 
 const BASE = { DATABASE_URL: "x", MINIO_ACCESS_KEY: "a", MINIO_SECRET_KEY: "b" };
+const CORE = { CORE_API_KEY: "fk_abc", CORE_WEBHOOK_SECRET: "whsec_x" };
 
-test("PIX_GATEWAY padrão é woovi e exige WOOVI_APP_ID", () => {
+test("o Pix exige a chave fk_ e o segredo whsec_ do Core", () => {
   assert.throws(() => parseEnv(BASE));
+  assert.throws(() => parseEnv({ ...BASE, CORE_API_KEY: "fk_abc" }));
+  assert.throws(() => parseEnv({ ...BASE, CORE_WEBHOOK_SECRET: "whsec_x" }));
+  assert.throws(() => parseEnv({ ...BASE, CORE_API_KEY: "abc", CORE_WEBHOOK_SECRET: "whsec_x" }));
+  assert.throws(() => parseEnv({ ...BASE, CORE_API_KEY: "fk_abc", CORE_WEBHOOK_SECRET: "segredo" }));
 
-  const env = parseEnv({ ...BASE, WOOVI_APP_ID: "app" });
+  const env = parseEnv({ ...BASE, ...CORE });
 
-  assert.equal(env.PIX_GATEWAY, "woovi");
-  assert.equal(env.WOOVI_BASE_URL, "https://api.woovi.com");
+  assert.equal(env.CORE_API_URL, "https://felipepasc.com");
+  assert.equal(env.CORE_API_KEY, "fk_abc");
 });
 
-test("PIX_GATEWAY=abacatepay exige as variáveis da AbacatePay e não a Woovi", () => {
-  assert.throws(() => parseEnv({ ...BASE, PIX_GATEWAY: "abacatepay" }));
-
-  const env = parseEnv({ ...BASE, PIX_GATEWAY: "abacatepay", ABACATEPAY_API_KEY: "k", ABACATEPAY_WEBHOOK_SECRET: "0123456789abcdef" });
-
-  assert.equal(env.PIX_GATEWAY, "abacatepay");
-});
-
-test("PIX_GATEWAY inválido é recusado", () => {
-  assert.throws(() => parseEnv({ ...BASE, PIX_GATEWAY: "outro", WOOVI_APP_ID: "app" }));
+test("CORE_API_URL precisa ser um endereço", () => {
+  assert.throws(() => parseEnv({ ...BASE, ...CORE, CORE_API_URL: "felipepasc" }));
+  assert.equal(parseEnv({ ...BASE, ...CORE, CORE_API_URL: "http://localhost:6600" }).CORE_API_URL, "http://localhost:6600");
 });

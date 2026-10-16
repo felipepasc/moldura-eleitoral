@@ -91,12 +91,12 @@ test("com as vendas fechadas o GET do pedido e o download continuam funcionando"
 
   assert.equal((await t.app.inject({ method: "GET", url: `/orders/${id}` })).statusCode, 404);
   assert.equal((await t.app.inject({ method: "GET", url: "/orders/6b1f9a52-5a43-4d52-8d52-0a8f2f0a0000" })).statusCode, 404);
-  assert.equal((await t.app.inject({ method: "POST", url: "/webhooks/abacatepay?webhookSecret=x", payload: { event: "x" } })).statusCode, 401);
+  assert.equal((await t.app.inject({ method: "POST", url: "/webhooks/core", payload: { id: "evt_x", type: "charge.paid" } })).statusCode, 400);
 });
 
 test("SALES_ENABLED sem valor fecha as vendas (fail-closed)", async () => {
   const { parseEnv } = await import("@/core/env");
-  const base = { DATABASE_URL: "x", MINIO_ACCESS_KEY: "a", MINIO_SECRET_KEY: "b", WOOVI_APP_ID: "app" };
+  const base = { DATABASE_URL: "x", MINIO_ACCESS_KEY: "a", MINIO_SECRET_KEY: "b", CORE_API_KEY: "fk_abc", CORE_WEBHOOK_SECRET: "whsec_x" };
 
   assert.equal(parseEnv(base).SALES_ENABLED, false);
   assert.equal(parseEnv({ ...base, SALES_ENABLED: "true" }).SALES_ENABLED, true);
@@ -150,5 +150,5 @@ test("durante o blackout webhook, GET do pedido e liberação continuam funciona
   await appAt("2026-10-25T12:00:00-03:00");
 
   assert.equal((await t.app.inject({ method: "GET", url: "/orders/6b1f9a52-5a43-4d52-8d52-0a8f2f0a0000" })).statusCode, 404);
-  assert.equal((await t.app.inject({ method: "POST", url: "/webhooks/abacatepay?webhookSecret=x", payload: { event: "x" } })).statusCode, 401);
+  assert.equal((await t.app.inject({ method: "POST", url: "/webhooks/core", payload: { id: "evt_x", type: "charge.paid" } })).statusCode, 400);
 });

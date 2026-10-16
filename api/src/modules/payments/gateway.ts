@@ -4,7 +4,7 @@ export type CreatePixInput = {
   amountCents: number;
   description: string;
   expiresInSeconds: number;
-  // Id do pedido: o gateway pode usá-lo como identificador próprio da cobrança (Woovi) ou ignorá-lo (AbacatePay).
+  // Referência aleatória do pedido (nunca o id do pedido): vira o externalId da cobrança no Core.
   reference: string;
 };
 

@@ -29,7 +29,7 @@ test("toda resposta da api leva X-Content-Type-Options: nosniff", async () => {
   const health = await t.app.inject({ method: "GET", url: "/healthz" });
   const missing = await t.app.inject({ method: "GET", url: "/nao-existe" });
   const order = await t.app.inject({ method: "GET", url: "/orders/abc" });
-  const webhook = await t.app.inject({ method: "POST", url: "/webhooks/abacatepay", payload: {} });
+  const webhook = await t.app.inject({ method: "POST", url: "/webhooks/core", payload: {} });
 
   for (const res of [health, missing, order, webhook]) {
     assert.equal(res.headers["x-content-type-options"], "nosniff");

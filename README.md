@@ -1,13 +1,13 @@
 # Moldura Eleitoral
 
 Monorepo pnpm: `common` (schemas e candidatos), `api` (Fastify + Postgres + MinIO + sharp), `web` (Next.js).
-O cliente vê a prévia grátis (com marca d'água), paga R$ 3,99 por Pix (Woovi) e baixa o PNG sem marca d'água, montado no servidor depois do pagamento.
+O cliente vê a prévia grátis (com marca d'água), paga R$ 2,99 por Pix (pelo Core, que gera o Pix na Woovi) e baixa o PNG sem marca d'água, montado no servidor depois do pagamento.
 
 ## Rodar local
 
 1. `docker compose up -d` (Docker Desktop aberto): Postgres :5440 e MinIO :9300 (console :9301), ambos só em 127.0.0.1.
 2. `pnpm install`
-3. `api/.env`: copie de `api/.env.example` e preencha `WOOVI_APP_ID` (AppID do sandbox da Woovi) e deixe `SALES_ENABLED=true` (sem valor as vendas ficam fechadas). `web/.env.local`: copie de `web/.env.example` (`NEXT_PUBLIC_API_URL`).
+3. `api/.env`: copie de `api/.env.example` e preencha `CORE_API_KEY` e `CORE_WEBHOOK_SECRET` (chave de um serviço de teste no Core; veja a seção Pix pelo Core) e deixe `SALES_ENABLED=true` (sem valor as vendas ficam fechadas). `web/.env.local`: copie de `web/.env.example` (`NEXT_PUBLIC_API_URL`).
    Os arquivos `.env*` ficam fora do git (só `.env.example` e `.env.test` são versionados). Nunca commite segredos. Esta pasta está no OneDrive: mantenha o `api/.env` fora de pastas sincronizadas ou exclua-o da sincronização.
 4. `pnpm --filter @moldura/api db:setup`
 5. `pnpm dev:api` (http://localhost:6600) e `pnpm dev:web` (http://localhost:6610). O `dev:web` copia as molduras para `web/public/frames` antes de subir.
@@ -62,9 +62,9 @@ O que isso NÃO impede: print pelo botão do celular, gravadores de tela, ferram
 
 ## Privacidade e termos (web)
 
-- `/privacidade` e `/termos` (links no rodapé) descrevem o que o site realmente faz: foto enviada só ao clicar em "Baixar foto pronta", prazos de exclusão, Pix pela Woovi sem pedir nome/CPF, IP não guardado (só em memória para limitar abusos), lista "Minhas molduras" no localStorage, sem cookies, análise, anúncios ou rastreadores. **Os textos são um rascunho inicial e precisam ser revisados pelo advogado do operador antes do lançamento.** Se a api mudar prazos ou dados guardados, atualize as duas páginas.
+- `/privacidade` e `/termos` (links no rodapé) descrevem o que o site realmente faz: foto enviada só ao clicar em "Baixar foto pronta", prazos de exclusão, Pix pelo Core/Woovi sem pedir nome/CPF, IP não guardado (só em memória para limitar abusos), lista "Minhas molduras" no localStorage, sem cookies, análise, anúncios ou rastreadores. **Os textos são um rascunho inicial e precisam ser revisados pelo advogado do operador antes do lançamento.** Se a api mudar prazos ou dados guardados, atualize as duas páginas.
 - Variáveis do web (lidas no build; veja `web/.env.example`, que traz os valores de produção aprovados): `NEXT_PUBLIC_OPERATOR_NAME` (razão social), `NEXT_PUBLIC_OPERATOR_DOC` (CNPJ) e `NEXT_PUBLIC_CONTACT_EMAIL` (e-mail para LGPD e problemas com pagamento). A identificação aparece no rodapé de todas as páginas e no bloco de operador de `/privacidade` e `/termos`. Sem nome e e-mail, o rodapé e as páginas omitem o bloco e o build mostra um aviso. Endereço físico ainda não é exibido (decisão pendente do dono).
-- `/privacidade` informa o armazenamento na Cloudflare R2 (transferência internacional, LGPD art. 33), os operadores (Cloudflare, Woovi, hospedagem) e o consentimento.
+- `/privacidade` informa o armazenamento na Cloudflare R2 (transferência internacional, LGPD art. 33), os operadores (Cloudflare, Woovi, hospedagem), o registro financeiro da venda no nosso sistema financeiro (Core) e o consentimento.
 - Cabeçalhos do web: CSP, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY`, `nosniff`, `Permissions-Policy`, sem `X-Powered-By`; `Strict-Transport-Security` só em produção.
 - `pnpm test` também roda os testes dos helpers do web (`web/src/lib/*.check.ts`, via `tsx --test`).
 
@@ -72,31 +72,23 @@ O que isso NÃO impede: print pelo botão do celular, gravadores de tela, ferram
 
 O texto das molduras usa a Montserrat ExtraBold (subconjunto latin, `api/assets/fonts/montserrat-latin-800-normal.woff`, extraída do pacote npm `@fontsource/montserrat`, que não é dependência do projeto), licenciada sob a SIL Open Font License 1.1; o texto da licença está em `api/assets/fonts/Montserrat-OFL.txt`. O `opentype.js` (devDependency da api) converte os glifos em caminhos SVG.
 
-## Woovi (gateway de Pix padrão)
+## Pix pelo Core
 
-`PIX_GATEWAY=woovi` (padrão). A api fala com a Woovi por `fetch` puro (sem SDK): `POST /api/v1/charge?return_existing=true` (o `correlationID` é uma referência aleatória própria, nunca o id do pedido, que é a credencial do download; `value` em centavos, `expiresIn` de no mínimo 300 s) e `GET /api/v1/charge/{id}`. O header é `Authorization: <AppID>` (sem `Bearer`). Status: `ACTIVE` vira pendente, `COMPLETED` vira pago, `EXPIRED` vira expirado e qualquer outro valor vira pendente (nunca se infere pago). O QR code é gerado na api a partir do `brCode` (PNG local, sem usar a imagem hospedada pela Woovi).
+A api não fala com nenhum provedor de pagamento: ela usa o `@felipepasc/core-sdk` (npm público) e o Core (`https://felipepasc.com`) gera o Pix no provedor configurado no CNPJ do serviço (hoje a Woovi). Nada de nota fiscal: só cobrança e Pix.
 
-- Variáveis: `WOOVI_APP_ID` (obrigatória), `WOOVI_BASE_URL` (`https://api.woovi.com`; sandbox `https://api.woovi-sandbox.com`), `WOOVI_WEBHOOK_PUBLIC_KEY` (opcional; a chave pública oficial já vem embutida).
-- Sandbox: crie a conta em `https://app.woovi-sandbox.com/` (cadastro separado da produção), gere o AppID em Admin > API/Plugins e use `WOOVI_BASE_URL=https://api.woovi-sandbox.com`. Pague a cobrança de teste pelo painel/link de pagamento do sandbox.
-- Webhook: `POST https://<api>/webhooks/woovi`, evento `OPENPIX:CHARGE_COMPLETED`. Cadastro no painel: Admin > API/Plugins > "Novo Webhook" (nome, ativo, evento `OPENPIX:CHARGE_COMPLETED`, URL; a Woovi testa a URL ao salvar e o evento de teste, sem cobrança, recebe 200). Autenticação: a assinatura RSA/SHA-256 do header `x-webhook-signature` é verificada sobre os bytes crus do corpo; assinatura ausente ou inválida devolve 401 e nada é gravado. Mesmo com assinatura válida, a api sempre reconsulta a cobrança na Woovi antes de liberar o pedido. A Woovi reenvia até 8 vezes se a resposta for 4xx/5xx; a entrega é idempotente.
-- Taxas: escolha o plano **percentual (0,80% por Pix confirmado, mínimo R$ 0,50)**; o plano fixo cobra R$ 0,85 por Pix. Conferir na contratação. Saque e cadastro (CNPJ) seguem as regras da Woovi; pergunte ao suporte, antes de lançar, se o uso eleitoral é permitido e guarde a resposta.
-
-## AbacatePay (alternativa: `PIX_GATEWAY=abacatepay`)
-
-Conferido em docs.abacatepay.com (API v2, `https://api.abacatepay.com/v2`):
-
-- Webhook: configure no painel a URL `https://<api>/webhooks/abacatepay?webhookSecret=<ABACATEPAY_WEBHOOK_SECRET>`. O evento de Pix pago é `transparent.completed` (também existem `transparent.refunded`, `transparent.disputed`, `transparent.lost`).
-- A `api` **reconsulta** o status do Pix antes de liberar qualquer pedido; o webhook sozinho não libera nada. Sem webhook, o polling da tela do pedido (consulta a cada poucos segundos) também libera.
-- A API documenta 9 status: PENDING, PAID, EXPIRED, CANCELLED, REFUNDED, FAILED, UNDER_DISPUTE, APPROVED, REDEEMED. O cliente mapeia PENDING, PAID, EXPIRED, CANCELLED e REFUNDED para eles mesmos, FAILED para CANCELLED e todo o resto (UNDER_DISPUTE, APPROVED, REDEEMED, valores desconhecidos) para PENDING. Só o literal PAID vira PAID.
-- O webhook traz o header `X-Webhook-Signature` (HMAC-SHA256 do corpo bruto com a chave pública da AbacatePay). Não dependemos dele: confiamos no segredo na query e reconsultamos o status do Pix.
-- `brCodeBase64` pode vir com o prefixo `data:image/png;base64,`.
-- Os campos dentro de `data` do webhook `transparent.completed` não foram confirmados (a api procura qualquer `id`/`externalId` no corpo).
-- Dev/sandbox é definido pela chave de API usada. `ABACATEPAY_BASE_URL` permite apontar para outro servidor.
+- Pedido novo: `charges.upsert(<referência>)` com um cliente genérico ("Cliente Moldura Eleitoral"), um item "Moldura Eleitoral" de R$ 2,99 (`PRICE_CENTS`) e vencimento no dia (Brasília), depois `charges.createPayment(<referência>, { method: "pix" })`. A referência é aleatória (32 hex), nunca o id do pedido (a credencial do download); o Core nunca recebe foto, candidato nem dado do comprador. O QR é gerado na api a partir do copia e cola (sem a imagem do provedor). Pix com outro valor ou sem copia e cola é recusado.
+- Consulta: `charges.get(<referência>)`. Só `paid` libera; `canceled` expira; o resto (inclusive estorno, que volta para `open`) é pendente.
+- A cobrança paga vira receita do serviço no Core sozinha (lançamento `charge:<referência>`): não mande `revenue_cents` nem lançamento para o mesmo dinheiro.
+- Aviso: `POST https://<api>/webhooks/core`, evento `charge.paid`, assinado no padrão Standard Webhooks (`verifyWebhook` do SDK, janela de 5 min). Assinatura errada, ausente ou velha devolve 400 e nada é gravado. Mesmo com assinatura válida, a api reconsulta a cobrança antes de liberar o pedido; se ainda não estiver paga (ou o Core falhar), responde 503 e o Core repete (2 s, 4 s, 8 s… para sempre). A entrega é idempotente pelo id do aviso. Sem aviso, o polling da tela do pedido também libera.
+- Variáveis: `CORE_API_KEY` (`fk_...`, do serviço "Moldura Eleitoral" no Core, aba Integração; só aparece na criação), `CORE_WEBHOOK_SECRET` (`whsec_...`), `CORE_API_URL` (`https://felipepasc.com`). As duas primeiras são obrigatórias: sem elas a api não sobe.
+- Cadastrar o aviso (uma vez por ambiente): `CORE_API_KEY=fk_... pnpm --filter @moldura/api core:webhook https://api.molduraeleitoral.com`. O segredo sai uma vez, numa linha `CORE_WEBHOOK_SECRET=...`: ponha direto no ambiente da api.
+- Na subida a api chama `ping` e loga o nome do serviço do Core (confira que é o da Moldura, não outro). O `.npmrc` da raiz força o `@felipepasc` no npm público (ignora um `~/.npmrc` antigo do GitHub Packages).
+- Taxas e saque seguem o contrato da Woovi da empresa no Core; pergunte ao suporte se o uso eleitoral é permitido e guarde a resposta.
 
 ## API
 
 - Multipart de `POST /orders`: os campos `candidateId` e `framing` precisam vir ANTES do arquivo `photo`.
-- Limites: `POST /orders` 10 por minuto por IP; `GET /orders/:id` 300 por minuto por IP; a api só reconsulta a Woovi no máximo a cada 5 s por pedido (o webhook sempre força), e refaz a montagem de um `paid_failed` no máximo a cada 30 s.
+- Limites: `POST /orders` 10 por minuto por IP; `GET /orders/:id` 300 por minuto por IP; a api só reconsulta o Core no máximo a cada 5 s por pedido (o webhook sempre força), e refaz a montagem de um `paid_failed` no máximo a cada 30 s.
 - Só JPEG, PNG e WebP são aceitos, conferidos pelos bytes iniciais antes de a foto chegar ao sharp. Toda resposta leva `X-Content-Type-Options: nosniff`.
 - O id do pedido é a credencial do download: quem tem o id consegue ver o status e baixar a imagem paga.
 - `TRUST_PROXY` é o número de proxies confiáveis na frente da api (0 = nenhum, o padrão; 1 = um proxy, e assim por diante). A api só deve ser alcançável pelo proxy, numa rede privada: o par direto precisa ter endereço privado/loopback (127/8, 10/8, 172.16/12, 192.168/16, ::1, fc00::/7, fe80::/10), senão o `X-Forwarded-For` é ignorado. Com N saltos a api usa o endereço N posições a partir da direita do cabeçalho. Os valores antigos `false`/`true` valem 0/1.
@@ -107,20 +99,20 @@ IP não é gravado; usado só em memória para limitar requisições (o banco n�
 
 A limpeza roda uma vez na subida da api e depois a cada hora (`cleanupOrders`, sem execuções sobrepostas):
 
-- Pedidos `pending`/`expired`: após 24 h da criação. Antes de apagar, a limpeza reconsulta o Pix na Woovi (se pagou, o pedido segue as regras de pago; se a consulta falhar, o pedido é pulado e tentado na hora seguinte). A linha é apagada com condição de status (nunca apaga um pedido que acabou de pagar) e a foto depois; se a foto não puder ser removida, sai um aviso de foto órfã e a regra do MinIO (4 dias) é a rede de segurança.
-- Teto independente da Woovi: pedido `pending`/`expired` com mais de 3 dias é apagado mesmo que a consulta continue falhando (chave trocada, URL errada, 401/403/404).
+- Pedidos `pending`/`expired`: após 24 h da criação. Antes de apagar, a limpeza reconsulta a cobrança no Core (se pagou, o pedido segue as regras de pago; se a consulta falhar, o pedido é pulado e tentado na hora seguinte). A linha é apagada com condição de status (nunca apaga um pedido que acabou de pagar) e a foto depois; se a foto não puder ser removida, sai um aviso de foto órfã e a regra do MinIO (4 dias) é a rede de segurança.
+- Teto independente do Core: pedido `pending`/`expired` com mais de 3 dias é apagado mesmo que a consulta continue falhando (chave trocada, URL errada, 401/403/404).
 - Se esse apagamento por teto acontecer com a consulta falhando, o log traz o aviso "Pedido não pago apagado pelo teto sem confirmação" com `pixId` e `orderRef`: o cliente pode ter pago sem a api saber.
 - Pedidos `paid`: após 7 dias do pagamento (ou da criação, se não houver data de pagamento). Imagem final e foto que tenha sobrado são removidas primeiro; a linha inteira (Pix, enquadramento) só é apagada se todas as remoções deram certo, senão tenta de novo na hora seguinte. Qualquer `photoKey` que sobrou de uma remoção que falhou é apagada na hora.
-- Pedidos `paid_failed` (cliente pagou e não recebeu a imagem): após 3 dias da criação (com a Woovi respondendo); teto de 5 dias mesmo com a Woovi fora do ar. O apagamento registra o aviso "Pedido pago sem imagem apagado" com o `pixId` (ver o roteiro abaixo).
+- Pedidos `paid_failed` (cliente pagou e não recebeu a imagem): após 3 dias da criação (com o Core respondendo); teto de 5 dias mesmo com o Core fora do ar. O apagamento registra o aviso "Pedido pago sem imagem apagado" com o `pixId` (ver o roteiro abaixo).
 - `webhook_events`: após 30 dias.
 
 A regra de ciclo de vida do MinIO (`photos/` 4 dias, `results/` 8 dias) é só uma rede de segurança; a expiração é avaliada por dia (arredondada para a meia-noite UTC e aplicada por um varredor em segundo plano), então 4 e 8 dias são limites superiores com até ~1 dia de folga (a limpeza normalmente apaga a foto em 24 h ou no pagamento). Se ela não puder ser aplicada, a api apenas registra o aviso "Não consegui configurar a expiração automática do bucket" na subida: em produção, o operador precisa vigiar esse aviso. Como a foto some do MinIO em 4 dias, um `paid_failed` não pode mais ser remontado depois disso: aja antes.
 
 ### Roteiro do operador: pedido pago sem imagem
 
-0. Mesmo roteiro para "Pedido não pago apagado pelo teto sem confirmação": confira o `pixId` no painel da Woovi; se estiver pago, reembolse.
+0. Mesmo roteiro para "Pedido não pago apagado pelo teto sem confirmação": procure a cobrança pelo `pixId` (é o externalId dela) no Core; se estiver paga, reembolse.
 1. Procure no log da api a mensagem "Pedido pago sem imagem" (quando a montagem falha) ou "Pedido pago sem imagem apagado" (quando a limpeza remove o pedido). Os dois eventos trazem `orderRef` (hash curto, serve só para achar o pedido nos logs) e `pixId` (o id da cobrança). São (com o aviso de teto sem confirmação) os únicos logs que contêm o `pixId`.
-2. No painel da Woovi, localize a cobrança por esse `pixId` e faça o reembolso.
+2. No Core (`/dashboard/faturamento/cobrancas`), localize a cobrança por esse `pixId`, faça o reembolso no painel da Woovi e reabra/cancele a cobrança no Core.
 3. O pedido não precisa de mais nada: a limpeza apaga a linha sozinha (3 a 5 dias).
 
 ## Minhas molduras
@@ -140,11 +132,11 @@ Domínios: `molduraeleitoral.com` e `www.molduraeleitoral.com` (web), `api.moldu
 
 ### Variáveis da api (runtime)
 
-- Obrigatórias: `DATABASE_URL`, `WEB_ORIGIN` (`https://molduraeleitoral.com,https://www.molduraeleitoral.com`: lista separada por vírgula, cada item é normalizado e só elas passam no CORS), `MINIO_ENDPOINT`, `MINIO_PORT`, `MINIO_USE_SSL`, `MINIO_REGION`, `MINIO_BUCKET`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `WOOVI_APP_ID`, `TRUST_PROXY`, `SALES_ENABLED` (sem valor as vendas ficam FECHADAS).
-- Opcionais: `PORT` (6600), `LOG_LEVEL` (`info`; `warn` reduz o volume), `PIX_GATEWAY` (`woovi` por padrão), `WOOVI_BASE_URL` (`https://api.woovi.com`), `WOOVI_WEBHOOK_PUBLIC_KEY`. Só com `PIX_GATEWAY=abacatepay`: `ABACATEPAY_API_KEY`, `ABACATEPAY_WEBHOOK_SECRET`, `ABACATEPAY_BASE_URL`.
+- Obrigatórias: `DATABASE_URL`, `WEB_ORIGIN` (`https://molduraeleitoral.com,https://www.molduraeleitoral.com`: lista separada por vírgula, cada item é normalizado e só elas passam no CORS), `MINIO_ENDPOINT`, `MINIO_PORT`, `MINIO_USE_SSL`, `MINIO_REGION`, `MINIO_BUCKET`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `CORE_API_KEY`, `CORE_WEBHOOK_SECRET`, `TRUST_PROXY`, `SALES_ENABLED` (sem valor as vendas ficam FECHADAS).
+- Opcionais: `PORT` (6600), `LOG_LEVEL` (`info`; `warn` reduz o volume), `CORE_API_URL` (`https://felipepasc.com`).
 - R2: `MINIO_ENDPOINT=<account_id>.r2.cloudflarestorage.com`, `MINIO_PORT=443`, `MINIO_USE_SSL=true`, `MINIO_REGION=auto`, `MINIO_BUCKET=<bucket>`, chaves de um token S3 do R2 com permissão de leitura/escrita no bucket (e, se possível, de ciclo de vida). O bucket já deve existir: a api só o cria se faltar. A api tenta aplicar a regra de expiração (`photos/` 4 dias, `results/` 8 dias); se o R2 recusar, só registra o aviso "Não consegui configurar a expiração automática do bucket" (configure a regra no painel do R2). Os links assinados usam path-style e a região `auto`.
 - `TRUST_PROXY=2`: o caminho é Cloudflare, depois Traefik (Coolify), depois a api. O `X-Forwarded-For` chega como `<cliente>, <IP da Cloudflare>`; com 2 saltos a api descarta os dois últimos e usa o cliente, e o par direto (o Traefik) precisa estar em rede privada. Isso só é seguro se o servidor de origem aceitar conexões **apenas dos IPs da Cloudflare** (firewall/Security Group); caso contrário alguém pode falar direto com o Traefik e forjar o cabeçalho. O IP é usado só em memória, para o limite de requisições. Confirme no ambiente real.
-- Webhook da Woovi: `https://api.molduraeleitoral.com/webhooks/woovi` (evento `OPENPIX:CHARGE_COMPLETED`, cadastrado em Admin > API/Plugins > Novo Webhook; a autenticação é a assinatura RSA, então a URL não leva segredo). Também aceitamos `www`: a Cloudflare faz 301 de `www` para o apex, e o CORS aceita os dois.
+- Aviso do Core: `https://api.molduraeleitoral.com/webhooks/core` (evento `charge.paid`, cadastrado com `core:webhook`; a autenticação é a assinatura HMAC, então a URL não leva segredo). Também aceitamos `www`: a Cloudflare faz 301 de `www` para o apex, e o CORS aceita os dois.
 
 ### Variáveis do web (build args: valem no BUILD, não no runtime)
 
@@ -160,9 +152,9 @@ Domínios: `molduraeleitoral.com` e `www.molduraeleitoral.com` (web), `api.moldu
 
 - Fora do Docker: `pnpm --filter @moldura/api start` (usa `tsx`, que é dependência da api; lê `api/.env` só se existir, então em produção injete as variáveis no ambiente). O caminho das molduras e das migrações é resolvido a partir do código, não do diretório de onde o processo foi iniciado.
 - Antes da primeira subida e a cada deploy com migração: `pnpm --filter @moldura/api db:setup` (cria o banco se faltar e aplica `api/drizzle`).
-- Variáveis obrigatórias: `DATABASE_URL`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `WOOVI_APP_ID` (ou as da AbacatePay com `PIX_GATEWAY=abacatepay`), `SALES_ENABLED` explícito. Opcionais: `PORT`, `WEB_ORIGIN`, `TRUST_PROXY`, `MINIO_ENDPOINT`, `MINIO_PORT`, `MINIO_USE_SSL`, `MINIO_BUCKET`, `WOOVI_BASE_URL`, `LOG_LEVEL` (`info` por padrão; `warn` em produção reduz o volume).
+- Variáveis obrigatórias: `DATABASE_URL`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `CORE_API_KEY`, `CORE_WEBHOOK_SECRET`, `SALES_ENABLED` explícito. Opcionais: `PORT`, `WEB_ORIGIN`, `TRUST_PROXY`, `MINIO_ENDPOINT`, `MINIO_PORT`, `MINIO_USE_SSL`, `MINIO_BUCKET`, `CORE_API_URL`, `LOG_LEVEL` (`info` por padrão; `warn` em produção reduz o volume).
 - Imagem Docker: o `CMD` roda `tsx src/scripts/setup-db.ts` e `tsx src/main.ts` direto (sem corepack em tempo de execução). O MinIO do `docker-compose.yml` é fixado por digest (`minio/minio@sha256:…`, release `RELEASE.2025-09-07T16-13-09Z`), pois a tag não está mais disponível no Docker Hub.
-- Gerar segredos: `openssl rand -hex 24` (senhas do Postgres e do MinIO, segredo do webhook).
+- Gerar segredos: `openssl rand -hex 24` (senhas do Postgres e do MinIO).
 
 ## Checklist de produção
 
@@ -170,20 +162,20 @@ Domínios: `molduraeleitoral.com` e `www.molduraeleitoral.com` (web), `api.moldu
 - TLS na api, no web e no MinIO: `MINIO_USE_SSL=true`. `MINIO_ENDPOINT` (e a porta) precisa ser o host público que o navegador alcança, porque os links de download assinados são assinados para esse host. HSTS e TLS ficam no proxy.
 - Usuário dedicado do MinIO, limitado ao bucket (não use o root).
 - Postgres e MinIO escutando só em localhost/rede privada. No Postgres: `log_statement=none`, sem log de parâmetros de consulta, e backups/snapshots com rotação de no máximo 7 dias (senão os pedidos apagados continuam existindo neles).
-- Logs do proxy/CDN/MinIO: descarte as query strings (na AbacatePay o segredo do webhook viaja em `?webhookSecret=`) e mascare segmentos UUID no caminho (`GET /orders/<uuid>` na api, `/pedido/<uuid>` no web, `results/<uuid>.png` no MinIO); mantenha o log de auditoria/acesso do MinIO desligado.
+- Logs do proxy/CDN/MinIO: descarte as query strings e mascare segmentos UUID no caminho (`GET /orders/<uuid>` na api, `/pedido/<uuid>` no web, `results/<uuid>.png` no MinIO); mantenha o log de auditoria/acesso do MinIO desligado.
 - `TRUST_PROXY` com o número real de proxies, verificado atrás do proxy de verdade (confira que o IP usado no limite de requisições é o do cliente, não o do proxy), e a api alcançável só pelo proxy.
-- Webhook da Woovi: a chave pública oficial é embutida; se a Woovi rotacionar, defina `WOOVI_WEBHOOK_PUBLIC_KEY` (PEM) e reinicie. Com a AbacatePay, a rotação do segredo exige atualizar `ABACATEPAY_WEBHOOK_SECRET` e a URL no painel juntos (haverá 401 no intervalo).
+- Aviso do Core: para trocar o segredo, `webhooks.rotateSecret` (vale na hora) e atualize `CORE_WEBHOOK_SECRET` em seguida; no intervalo os avisos dão 400 e o Core repete, sem perder nada (o polling também libera).
 - Logs de acesso do proxy/CDN/host normalmente registram o IP do cliente: desligue-os ou guarde por um período curto e definido (sugestão: até 7 dias). Defina também a retenção dos logs da aplicação (têm `orderRef`, e `pixId` só nos eventos de pago sem imagem e de teto sem confirmação): sugestão de até 30 dias.
 - Mantenha o `api/.env` fora de pastas sincronizadas (OneDrive etc.) em produção.
 - Vigiar o aviso da regra de ciclo de vida do MinIO e as mensagens "Pedido pago sem imagem" e "Pedido não pago apagado pelo teto sem confirmação" (roteiro acima).
 - O web já envia `Referrer-Policy` e `Content-Security-Policy`; defina `NEXT_PUBLIC_IMAGES_ORIGIN` igual à origem dos links assinados do MinIO antes do build.
 
-## Verificação ponta a ponta (sem a AbacatePay real)
+## Verificação ponta a ponta
 
-Sem chave real, o fluxo foi verificado com um servidor falso da AbacatePay (`/v2/transparents/create` e `/check`) via `ABACATEPAY_BASE_URL`, com Postgres e MinIO reais: pedido 201 sem campos internos, foto em `photos/`, após o Pix pago o pedido vira `paid`, o PNG baixado tem 1080×1080, foto no círculo, moldura por cima e sem marca d'água, `results/<id>.png` existe e `photos/<id>.jpg` some; webhook 200, repetido vira `duplicate`, segredo errado dá 401; os logs não trazem segredo, id do pedido nem chaves de armazenamento; a limpeza apaga linha e arquivo. Falta repetir com uma chave de desenvolvimento da AbacatePay para confirmar o formato real das respostas e dos webhooks.
+O adaptador do Core é testado com o cliente real do SDK sobre um `fetch` falso (rotas, cabeçalho, corpo e mapeamento de status) e o aviso com assinaturas Standard Webhooks geradas no teste. Falta o piloto real: um Pix de R$ 2,99 pelo Core em produção, conferindo o aviso `charge.paid` e o lançamento no serviço.
 
 ## Pendências
 
 - Hospedagem e domínio.
-- Testar com a AbacatePay real (chave de desenvolvimento): formato de `data` do webhook e simulação de pagamento.
+- Piloto real do Pix pelo Core (serviço "Moldura Eleitoral" no Core, chave e aviso cadastrados).
 - Validar com advogado eleitoral a cobrança por material de apoio e o uso dos nomes dos candidatos antes de lançar.
